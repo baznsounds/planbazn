@@ -260,7 +260,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);height:10
     <div id="statusbar">
       <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
       <span id="cal-status">Nicht kalibriert</span>
-      <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.1 Beta</span>
+      <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.1.1</span>
       <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
     </div>
   </div>
@@ -1131,6 +1131,7 @@ function renderSidebar(){
     });
     block.appendChild(items);list.appendChild(block);
   });
+  autosave();
 }
 
 // ══════════════════════════════════════════
@@ -1166,6 +1167,7 @@ function clearAll(){
   document.getElementById('cal-status').textContent='Nicht kalibriert';
   const btn=document.getElementById('cal-btn');btn.textContent='📏 Kalibrieren';btn.classList.remove('waiting');btn.classList.add('a2');
   mode='measure';setMode('measure');lockTools(true);showCalLock(false);renderSidebar();
+  clearAutosave();
 }
 
 // ══════════════════════════════════════════
@@ -1367,33 +1369,8 @@ function clearAutosave(){
   localStorage.removeItem(AUTOSAVE_KEY);
 }
 
-// Hook autosave into all state-changing functions
-const _origAddMeasure=addMeasure;
-// We trigger autosave after renderSidebar since it's called after every change
-const _origRenderSidebar=renderSidebar;
-function renderSidebar(){
-  _origRenderSidebar();
-  autosave();
-}
-
-// Also clear autosave on clearAll
-const _origClearAll=clearAll;
-// patch clearAll to also wipe autosave
-function clearAll(){
-  if(!confirm('Alles zurücksetzen?\nAlle Messungen, Gruppen und Kalibrierung gehen verloren.'))return;
-  cancelDrawing();groups=[];activeGroupId=null;idCounter=0;calibrated=false;pxPerUnit=null;
-  svg.innerHTML='';pdfDoc=null;imgDataUrl=null;pdfCanvas.width=0;pdfCanvas.height=0;
-  document.getElementById('drop-zone').classList.remove('hidden');
-  document.getElementById('cal-dot').style.background='var(--muted)';
-  document.getElementById('cal-status').textContent='Nicht kalibriert';
-  const btn=document.getElementById('cal-btn');btn.textContent='📏 Kalibrieren';btn.classList.remove('waiting');btn.classList.add('a2');
-  mode='measure';setMode('measure');lockTools(true);showCalLock(false);
-  _origRenderSidebar(); // call original, don't trigger autosave
-  clearAutosave();
-}
-
 // init
-_origRenderSidebar();
+renderSidebar();
 restoreAutosave();
 </script>
 </body>
