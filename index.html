@@ -260,7 +260,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);height:10
     <div id="statusbar">
       <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
       <span id="cal-status">Nicht kalibriert</span>
-      <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.1.1</span>
+      <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.1.2</span>
       <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
     </div>
   </div>
@@ -1310,17 +1310,17 @@ let autosaveTimer=null;
 function autosave(){
   if(!pdfCanvas.width)return;
   clearTimeout(autosaveTimer);
-  autosaveTimer=setTimeout(async()=>{
+  autosaveTimer=setTimeout(()=>{
     try{
-      const bgData=pdfCanvas.toDataURL('image/png');
-      const proj={v:4,bgData,planOpacity,calibration:{pxPerUnit,unit,calKnownVal,calibrated},groups,idCounter};
+      // Don't store bgData — too large for localStorage (5MB limit)
+      // Only save groups, calibration and settings
+      const proj={v:4,planOpacity,calibration:{pxPerUnit,unit,calKnownVal,calibrated},groups,idCounter};
       localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(proj));
       showAutosaveStatus('✓ Automatisch gespeichert');
     }catch(e){
-      // localStorage voll oder nicht verfügbar — still fail
-      showAutosaveStatus('⚠ Autosave fehlgeschlagen');
+      showAutosaveStatus('⚠ Autosave fehlgeschlagen (Speicher voll)');
     }
-  },1500); // 1.5s nach letzter Änderung
+  },1500);
 }
 
 function showAutosaveStatus(msg){
@@ -1337,13 +1337,11 @@ async function restoreAutosave(){
     const raw=localStorage.getItem(AUTOSAVE_KEY);
     if(!raw)return false;
     const proj=JSON.parse(raw);
-    if(!proj.bgData)return false;
+    if(!proj.calibration||!proj.groups||!proj.groups.length)return false;
 
-    const confirmed=confirm('📋 Es gibt einen automatisch gespeicherten Stand.\n\nWiederherstelllen?');
+    const confirmed=confirm('📋 Es gibt automatisch gespeicherte Messungen.\n\nWiederherstellen?\n\n(Den Plan musst du danach neu öffnen)');
     if(!confirmed)return false;
 
-    imgDataUrl=proj.bgData;fileType='img';pdfDoc=null;totalPages=1;pageNum=1;
-    document.getElementById('drop-zone').classList.add('hidden');
     const{pxPerUnit:pu,unit:u,calKnownVal:cv,calibrated:c}=proj.calibration;
     pxPerUnit=pu;unit=u;calKnownVal=cv;calibrated=c;
     groups=proj.groups||[];idCounter=proj.idCounter||0;
@@ -1359,8 +1357,8 @@ async function restoreAutosave(){
       document.getElementById('cal-status').textContent=`✓ Kalibriert: ${fmtVal(calKnownVal,unit)}`;
       lockTools(false);showCalLock(false);
     }
-    await renderPage();renderSidebar();
-    showAutosaveStatus('✓ Wiederhergestellt');
+    renderSidebar();
+    showAutosaveStatus('✓ Messungen wiederhergestellt — bitte Plan öffnen');
     return true;
   }catch(e){return false;}
 }
