@@ -260,6 +260,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);height:10
     <div id="statusbar">
       <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
       <span id="cal-status">Nicht kalibriert</span>
+      <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
     </div>
   </div>
 </div>
@@ -1297,8 +1298,102 @@ function exportListPDF(){
   doc.save('planbazn-liste.pdf');
 }
 
+// ══════════════════════════════════════════
+// AUTOSAVE (localStorage)
+// ══════════════════════════════════════════
+const AUTOSAVE_KEY='planbazn_autosave';
+let autosaveTimer=null;
+
+function autosave(){
+  if(!pdfCanvas.width)return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer=setTimeout(async()=>{
+    try{
+      const bgData=pdfCanvas.toDataURL('image/png');
+      const proj={v:4,bgData,planOpacity,calibration:{pxPerUnit,unit,calKnownVal,calibrated},groups,idCounter};
+      localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(proj));
+      showAutosaveStatus('✓ Automatisch gespeichert');
+    }catch(e){
+      // localStorage voll oder nicht verfügbar — still fail
+      showAutosaveStatus('⚠ Autosave fehlgeschlagen');
+    }
+  },1500); // 1.5s nach letzter Änderung
+}
+
+function showAutosaveStatus(msg){
+  const el=document.getElementById('autosave-status');
+  if(!el)return;
+  el.textContent=msg;
+  el.style.opacity='1';
+  clearTimeout(el._fadeTimer);
+  el._fadeTimer=setTimeout(()=>{el.style.opacity='0';},3000);
+}
+
+async function restoreAutosave(){
+  try{
+    const raw=localStorage.getItem(AUTOSAVE_KEY);
+    if(!raw)return false;
+    const proj=JSON.parse(raw);
+    if(!proj.bgData)return false;
+
+    const confirmed=confirm('📋 Es gibt einen automatisch gespeicherten Stand.\n\nWiederherstelllen?');
+    if(!confirmed)return false;
+
+    imgDataUrl=proj.bgData;fileType='img';pdfDoc=null;totalPages=1;pageNum=1;
+    document.getElementById('drop-zone').classList.add('hidden');
+    const{pxPerUnit:pu,unit:u,calKnownVal:cv,calibrated:c}=proj.calibration;
+    pxPerUnit=pu;unit=u;calKnownVal=cv;calibrated=c;
+    groups=proj.groups||[];idCounter=proj.idCounter||0;
+    activeGroupId=groups.length?groups[groups.length-1].id:null;
+    if(proj.planOpacity!=null){
+      planOpacity=proj.planOpacity;
+      const v=Math.round(planOpacity*100);
+      document.getElementById('opacity-slider').value=v;
+      document.getElementById('opacity-val').textContent=v+'%';
+    }
+    if(calibrated){
+      document.getElementById('cal-dot').style.background='var(--accent)';
+      document.getElementById('cal-status').textContent=`✓ Kalibriert: ${fmtVal(calKnownVal,unit)}`;
+      lockTools(false);showCalLock(false);
+    }
+    await renderPage();renderSidebar();
+    showAutosaveStatus('✓ Wiederhergestellt');
+    return true;
+  }catch(e){return false;}
+}
+
+function clearAutosave(){
+  localStorage.removeItem(AUTOSAVE_KEY);
+}
+
+// Hook autosave into all state-changing functions
+const _origAddMeasure=addMeasure;
+// We trigger autosave after renderSidebar since it's called after every change
+const _origRenderSidebar=renderSidebar;
+function renderSidebar(){
+  _origRenderSidebar();
+  autosave();
+}
+
+// Also clear autosave on clearAll
+const _origClearAll=clearAll;
+// patch clearAll to also wipe autosave
+function clearAll(){
+  if(!confirm('Alles zurücksetzen?\nAlle Messungen, Gruppen und Kalibrierung gehen verloren.'))return;
+  cancelDrawing();groups=[];activeGroupId=null;idCounter=0;calibrated=false;pxPerUnit=null;
+  svg.innerHTML='';pdfDoc=null;imgDataUrl=null;pdfCanvas.width=0;pdfCanvas.height=0;
+  document.getElementById('drop-zone').classList.remove('hidden');
+  document.getElementById('cal-dot').style.background='var(--muted)';
+  document.getElementById('cal-status').textContent='Nicht kalibriert';
+  const btn=document.getElementById('cal-btn');btn.textContent='📏 Kalibrieren';btn.classList.remove('waiting');btn.classList.add('a2');
+  mode='measure';setMode('measure');lockTools(true);showCalLock(false);
+  _origRenderSidebar(); // call original, don't trigger autosave
+  clearAutosave();
+}
+
 // init
-renderSidebar();
+_origRenderSidebar();
+restoreAutosave();
 </script>
 </body>
 </html>
