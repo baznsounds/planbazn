@@ -156,8 +156,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);height:10
       <div class="tb-row">
         <button class="btn" onclick="document.getElementById('file-input').click()">📂 Plan öffnen</button>
         <input type="file" id="file-input" accept="application/pdf,image/jpeg,image/png,image/webp" style="display:none">
-        <button class="btn" onclick="document.getElementById('swap-input').click()" title="Hintergrund tauschen">🔄 Tauschen</button>
+        <button class="btn" id="swap-btn" onclick="document.getElementById('swap-input').click()" title="Hintergrund tauschen">🔄 Plan tauschen</button>
         <input type="file" id="swap-input" accept="application/pdf,image/jpeg,image/png,image/webp" style="display:none">
+        <button class="btn" onclick="openNewCanvasModal()" title="Leere Zeichenfläche anlegen">📐 Leere Fläche</button>
         <div id="opacity-wrap">
           <label>Deckkraft</label>
           <input type="range" id="opacity-slider" min="10" max="100" value="100" oninput="setPlanOpacity(this.value)">
@@ -260,7 +261,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);height:10
     <div id="statusbar">
       <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
       <span id="cal-status">Nicht kalibriert</span>
-      <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.1.5</span>
+      <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.1.10</span>
       <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
     </div>
   </div>
@@ -353,6 +354,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);height:10
   </div>
 </div>
 
+<!-- NEW CANVAS -->
+<div class="modal-bg hidden" id="newcanvas-modal">
+  <div class="modal">
+    <h3>📐 Leere Fläche</h3>
+    <p class="modal-note">Legt ein leeres weißes Blatt an. Die Kalibrierung wird automatisch gesetzt.</p>
+    <div class="modal-row">
+      <div><label>Breite</label><input type="number" id="nc-width" value="20" min="1" max="5000" step="any"></div>
+      <div><label>Höhe</label><input type="number" id="nc-height" value="30" min="1" max="5000" step="any"></div>
+      <div><label>Einheit</label>
+        <select id="nc-unit">
+          <option value="m">m</option>
+          <option value="cm">cm</option>
+          <option value="mm">mm</option>
+          <option value="km">km</option>
+          <option value="ft">ft</option>
+          <option value="in">in</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeNewCanvasModal()">Abbrechen</button>
+      <button class="btn active" onclick="confirmNewCanvas()">Erstellen</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
@@ -376,6 +403,7 @@ let polyPts=[],polySegs=[],polyRubber=null;
 let anglePts=[],angleLines=[],angleRubber=null;
 let spaceDown=false,panning=false,panStart=null;
 let dragging=null,dragOffX=0,dragOffY=0,didDrag=false,dragStartX=0,dragStartY=0;
+let justDragged=false; // persists through click event after mouseup
 let justClickedItem=false; // block canvas click after item click
 let printChoice='plan';
 let gmColor='#222222';
@@ -482,9 +510,28 @@ document.addEventListener('keyup',e=>{
 wrap.addEventListener('wheel',e=>{
   e.preventDefault();
   const r=wrap.getBoundingClientRect(),cx=e.clientX-r.left,cy=e.clientY-r.top;
-  if(e.ctrlKey){zoom((e.deltaY>0?-0.08:0.08)*(Math.abs(e.deltaY)>10?1.5:1),cx,cy);}
-  else if(Math.abs(e.deltaX)>0||(e.deltaMode===0&&Math.abs(e.deltaY)<50)){panX-=e.deltaX;panY-=e.deltaY;applyTransform();}
-  else{zoom(e.deltaY<0?0.12:-0.12,cx,cy);}
+
+  // Pinch-zoom: ctrlKey is set by browser for trackpad pinch AND ctrl+wheel
+  if(e.ctrlKey){
+    const delta=e.deltaY>0?-0.08:0.08;
+    const factor=Math.abs(e.deltaY)>10?1.5:1;
+    zoom(delta*factor,cx,cy);
+    return;
+  }
+
+  // Trackpad two-finger pan OR mouse scroll
+  // deltaMode 0 = pixels (trackpad), 1 = lines, 2 = pages
+  const isTrackpad=e.deltaMode===0&&(Math.abs(e.deltaX)>0||Math.abs(e.deltaY)<50);
+
+  if(isTrackpad){
+    // Two-finger pan on trackpad
+    panX-=e.deltaX;
+    panY-=e.deltaY;
+    applyTransform();
+  } else {
+    // Mouse scroll wheel → zoom
+    zoom(e.deltaY<0?0.12:-0.12,cx,cy);
+  }
 },{passive:false});
 
 function canvasPos(e){const r=container.getBoundingClientRect();return{x:(e.clientX-r.left)/viewScale,y:(e.clientY-r.top)/viewScale};}
@@ -633,11 +680,12 @@ wrap.addEventListener('mouseup',e=>{
   if(panning){panning=false;panStart=null;updateCursor();}
   if(dragging){
     if(!didDrag){
-      // true click on item (no drag) — open text edit if text
       if(dragging.item.type==='text'){
-        justClickedItem=true;
+        justClickedItem=true; // set BEFORE click event fires
         openTextEditModal(dragging.item);
       }
+    } else {
+      justDragged=true;
     }
     dragging=null;didDrag=false;updateCursor();
   }
@@ -647,8 +695,9 @@ wrap.addEventListener('mouseenter',()=>{if(pdfCanvas.width)cursorDot.style.displ
 wrap.addEventListener('mouseleave',()=>{cursorDot.style.display='none';if(dragging){dragging=null;didDrag=false;updateCursor();}});
 
 wrap.addEventListener('click',e=>{
-  if(!pdfCanvas.width||spaceDown||panning||didDrag)return;
+  if(!pdfCanvas.width||spaceDown||panning)return;
   if(dragging)return;
+  if(justDragged){justDragged=false;return;}
   if(ignoreNextClick){ignoreNextClick=false;return;}
   if(justClickedItem){justClickedItem=false;return;}
   if(!calibrated&&mode!=='calibrate')return;
@@ -713,13 +762,28 @@ wrap.addEventListener('click',e=>{
 
   // TEXT
   if(mode==='text'){
-    // don't open new text if we just clicked an existing text item (handled by mouseup)
+    // don't open modal if we clicked on an existing item
+    const hit=findDraggable(p.x,p.y);
+    if(hit)return;
     openTextModal(p);return;
   }
 });
 
 wrap.addEventListener('dblclick',e=>{
   if(mode==='polyline'&&polyPts.length>=2)finishPolyline();
+});
+// Mausrad-Doppelklick (mittlere Taste) → fitToScreen via Timer
+let auxClickTimer=null;
+wrap.addEventListener('auxclick',e=>{
+  if(e.button!==1)return;
+  e.preventDefault();
+  if(auxClickTimer){
+    clearTimeout(auxClickTimer);
+    auxClickTimer=null;
+    fitToScreen();
+  } else {
+    auxClickTimer=setTimeout(()=>{auxClickTimer=null;},300);
+  }
 });
 wrap.addEventListener('contextmenu',e=>{
   e.preventDefault();
@@ -788,7 +852,26 @@ function finishCalibration(x1,y1,x2,y2,px){
   mode='measure';
   document.getElementById('cal-dot').style.background='var(--accent)';
   document.getElementById('cal-status').textContent=`✓ Kalibriert: ${fmtVal(calKnownVal,unit)}`;
+  // Alle bestehenden Maße neu berechnen
+  recalcAllMeasurements();
   lockTools(false);setMode('measure');
+}
+
+function recalcAllMeasurements(){
+  groups.forEach(grp=>{
+    grp.items.forEach(item=>{
+      if(item.type==='measure'){
+        item.rv=item.px/pxPerUnit;
+        item.label=fmtVal(item.rv,unit);
+      } else if(item.type==='polyline'){
+        item.rv=item.px/pxPerUnit;
+        item.label='Σ '+fmtVal(item.rv,unit);
+      }
+      // angle und shapes brauchen keine Neuberechnung
+    });
+    redrawGroupItems(grp);
+  });
+  renderSidebar();
 }
 function lockTools(l){['measure-btn','poly-btn','angle-btn','rect-btn','circle-btn','triangle-btn','text-btn'].forEach(id=>document.getElementById(id).disabled=l);}
 lockTools(true);
@@ -919,7 +1002,6 @@ function finishPolyline(){
   polyPts=[];polySegs=[];renderSidebar();
 }
 
-function cancelPolyline(){if(polyRubber){polyRubber.remove();polyRubber=null;}polySegs.forEach(g=>g.remove());polyPts=[];polySegs=[];}
 
 // ANGLE
 function finishAngle(){
@@ -1202,9 +1284,21 @@ function renderSidebar(){
   autosave();
 }
 
-// ══════════════════════════════════════════
-// MODE
-// ══════════════════════════════════════════
+function cancelDrawing(){
+  drawing=false;startPt=null;
+  if(activeLine){activeLine.remove();activeLine=null;}
+  cancelPolyline();
+  angleLines.forEach(l=>l.remove());angleLines=[];
+  if(angleRubber){angleRubber.remove();angleRubber=null;}
+  anglePts=[];
+}
+
+function cancelPolyline(){
+  if(polyRubber){polyRubber.remove();polyRubber=null;}
+  polySegs.forEach(g=>g.remove());
+  polyPts=[];polySegs=[];
+}
+
 function setMode(m){
   cancelDrawing();mode=m;
   const map={measure:'measure-btn',polyline:'poly-btn',angle:'angle-btn',rect:'rect-btn',circle:'circle-btn',triangle:'triangle-btn',text:'text-btn'};
@@ -1213,14 +1307,6 @@ function setMode(m){
     el.classList.remove('active');
   });
   if(map[m])document.getElementById(map[m]).classList.add('active');
-}
-function cancelDrawing(){
-  drawing=false;startPt=null;
-  if(activeLine){activeLine.remove();activeLine=null;}
-  cancelPolyline();
-  angleLines.forEach(l=>l.remove());angleLines=[];
-  if(angleRubber){angleRubber.remove();angleRubber=null;}
-  anglePts=[];
 }
 
 // ══════════════════════════════════════════
@@ -1234,7 +1320,11 @@ function clearAll(){
   document.getElementById('cal-dot').style.background='var(--muted)';
   document.getElementById('cal-status').textContent='Nicht kalibriert';
   const btn=document.getElementById('cal-btn');btn.textContent='📏 Kalibrieren';btn.classList.remove('waiting');btn.classList.add('a2');
-  mode='measure';setMode('measure');lockTools(true);showCalLock(false);renderSidebar();
+  mode='measure';setMode('measure');lockTools(true);showCalLock(false);
+  // Gruppe 1 immer anlegen
+  const grp={id:++idCounter,name:'Gruppe 1',color:'#222222',visible:true,collapsed:false,items:[]};
+  groups.push(grp);activeGroupId=grp.id;
+  renderSidebar();
   clearAutosave();
 }
 
@@ -1438,12 +1528,68 @@ function clearAutosave(){
   localStorage.removeItem(AUTOSAVE_KEY);
 }
 
-// init
-renderSidebar();
+// ══════════════════════════════════════════
+// NEW BLANK CANVAS
+// ══════════════════════════════════════════
+function openNewCanvasModal(){
+  document.getElementById('newcanvas-modal').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('nc-width').focus(),50);
+}
+function closeNewCanvasModal(){
+  document.getElementById('newcanvas-modal').classList.add('hidden');
+}
+document.getElementById('newcanvas-modal').addEventListener('keydown',e=>{if(e.key==='Enter')confirmNewCanvas();});
+
+function confirmNewCanvas(){
+  const w=parseFloat(document.getElementById('nc-width').value);
+  const h=parseFloat(document.getElementById('nc-height').value);
+  const u=document.getElementById('nc-unit').value;
+  if(!w||!h||w<=0||h<=0){alert('Bitte gültige Maße eingeben.');return;}
+
+  // px per unit: aim for ~60px per unit, but cap canvas at 6000px
+  let ppu=60;
+  const maxDim=Math.max(w,h);
+  if(maxDim*ppu>6000)ppu=Math.floor(6000/maxDim);
+  if(ppu<4)ppu=4;
+
+  const cw=Math.round(w*ppu);
+  const ch=Math.round(h*ppu);
+
+  // Draw onto pdfCanvas — plain white
+  pdfCanvas.width=cw;
+  pdfCanvas.height=ch;
+  const ctx=pdfCanvas.getContext('2d');
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,cw,ch);
+
+  // Store as image
+  imgDataUrl=pdfCanvas.toDataURL('image/png');
+  fileType='img';pdfDoc=null;totalPages=1;pageNum=1;
+
+  // Set calibration automatically
+  pxPerUnit=ppu; // px per 1 unit
+  unit=u;calKnownVal=1;calibrated=true;
+
+  svg.setAttribute('width',cw);svg.setAttribute('height',ch);
+  applyTransform();
+  fitToScreen();
+  document.getElementById('drop-zone').classList.add('hidden');
+  showCalLock(false);
+  document.getElementById('cal-dot').style.background='var(--accent)';
+  document.getElementById('cal-status').textContent=`✓ Auto-kalibriert: ${w}×${h} ${u}`;
+  lockTools(false);
+  closeNewCanvasModal();
+  const oldCal=document.getElementById('cal-grp');if(oldCal)oldCal.remove();
+  svg.querySelectorAll('.cal-grp').forEach(el=>el.remove());
+}
+
+
 restoreAutosave().then(restored=>{
-  if(!restored){
-    const grp={id:++idCounter,name:'Gruppe 1',color:'#222222',visible:true,collapsed:false,items:[]};
-    groups.push(grp);activeGroupId=grp.id;
+  if(!restored||!groups.length){
+    if(!groups.length){
+      const grp={id:++idCounter,name:'Gruppe 1',color:'#222222',visible:true,collapsed:false,items:[]};
+      groups.push(grp);activeGroupId=grp.id;
+    }
     renderSidebar();
   }
 });
