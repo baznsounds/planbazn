@@ -17,7 +17,7 @@ html,body{height:100%;overflow:hidden;}
 body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:flex;flex-direction:column;}
 
 /* ── TOOLBAR ── */
-#toolbar{display:flex;align-items:center;padding:0;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
+#toolbar{display:flex;align-items:stretch;padding:0;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;overflow:visible;position:relative;z-index:100;}
 .tb-section{display:flex;align-items:center;gap:4px;padding:4px 8px;border-right:1px solid var(--border);flex-shrink:0;}
 .tb-section:last-child{border-right:none;}
 .tb-label{font-size:8px;font-weight:800;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:3px;white-space:nowrap;}
@@ -104,7 +104,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 #group-list{flex:1;overflow-y:auto;padding:6px;}
 #group-list::-webkit-scrollbar{width:3px;}
 #group-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
-.group-block{margin-bottom:5px;border-radius:7px;border:1px solid var(--border);overflow:hidden;}
+.group-block{margin-bottom:6px;border-radius:7px;border:2px solid #6b7485;overflow:hidden;}
+.group-block.active-group{border-width:2.5px;}
 .group-block.active-group{border-width:2px;}
 .group-header{display:flex;align-items:center;gap:6px;padding:6px 9px;background:var(--panel);cursor:pointer;user-select:none;}
 .group-header:hover{background:#22252c;}
@@ -183,9 +184,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
   </div>
   <div class="tb-section">
     <div class="tb-col">
+      <span class="tb-label">Werkzeug</span>
+      <div class="tb-row">
+        <button class="btn active" id="select-btn" onclick="setMode('select')">↖ Auswahl</button>
+      </div>
+    </div>
+  </div>
+  <div class="tb-section">
+    <div class="tb-col">
       <span class="tb-label">Messen</span>
       <div class="tb-row">
-        <button class="btn measure-tool active" id="measure-btn" onclick="setMode('measure')">📏 Abstand</button>
+        <button class="btn measure-tool" id="measure-btn" onclick="setMode('measure')">📏 Abstand</button>
         <button class="btn measure-tool" id="poly-btn" onclick="setMode('polyline')">〽 Pfad</button>
         <button class="btn measure-tool" id="angle-btn" onclick="setMode('angle')">∠ Winkel</button>
       </div>
@@ -233,14 +242,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <span id="lib-header-title">📦 Bibliothek</span>
       <button class="btn" style="font-size:9px;padding:2px 6px;" onclick="toggleLibPanel()">✕</button>
     </div>
-    <div id="lib-shapes">
-      <span id="lib-shapes-label">Grundformen</span>
-      <div id="lib-shapes-row">
-        <button class="shape-lib-btn" id="rect-btn" onclick="setMode('rect')">▭ Rechteck</button>
-        <button class="shape-lib-btn" id="circle-btn" onclick="setMode('circle')">● Kreis</button>
-        <button class="shape-lib-btn" id="triangle-btn" onclick="setMode('triangle')">▲ Dreieck</button>
-      </div>
-    </div>
     <input type="text" id="lib-search" placeholder="Symbol suchen…" oninput="renderLibrary()">
     <div id="lib-body"></div>
   </div>
@@ -273,7 +274,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <div id="statusbar">
         <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
         <span id="cal-status">Nicht kalibriert</span>
-        <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.2.0</span>
+        <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.2.1</span>
         <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
       </div>
     </div>
@@ -430,289 +431,112 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 <script>
 const SYMBOL_LIBRARY = [
 
-  // ══════════ AUDIO ══════════
+  // ══════════ GENERIC ══════════
   {
-    id:'spk-top', name:'Lautsprecher Top', cat:'audio',
-    w:0.40, h:0.60, scalable:false,
+    id:'generic-rect', name:'Rechteck', cat:'generic',
+    w:2.00, h:1.00, scalable:true,
     draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="4" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph*0.38}" r="${Math.min(pw,ph)*0.22}" fill="${c}55" stroke="${c}" stroke-width="1.2"/>
-      <circle cx="${pw/2}" cy="${ph*0.38}" r="${Math.min(pw,ph)*0.10}" fill="${c}" stroke="none"/>
-      <ellipse cx="${pw/2}" cy="${ph*0.75}" rx="${pw*0.18}" ry="${ph*0.09}" fill="${c}88" stroke="${c}" stroke-width="1"/>
+      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="0" fill="${c}22" stroke="${c}" stroke-width="2"/>
     `
   },
   {
-    id:'spk-sub', name:'Subwoofer', cat:'audio',
-    w:0.55, h:0.55, scalable:false,
+    id:'generic-circle', name:'Kreis', cat:'generic',
+    w:1.00, h:1.00, scalable:true,
     draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="4" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.30}" fill="${c}55" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.14}" fill="${c}" stroke="none"/>
-      <text x="${pw/2}" y="${ph*0.88}" text-anchor="middle" font-size="${ph*0.12}" font-weight="700" fill="${c}" font-family="JetBrains Mono,monospace">SUB</text>
+      <ellipse cx="${pw/2}" cy="${ph/2}" rx="${pw/2-2}" ry="${ph/2-2}" fill="${c}22" stroke="${c}" stroke-width="2"/>
     `
   },
   {
-    id:'spk-monitor', name:'Monitor', cat:'audio',
-    w:0.50, h:0.35, scalable:false,
+    id:'generic-triangle', name:'Dreieck', cat:'generic',
+    w:1.00, h:1.00, scalable:true,
     draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="3" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <ellipse cx="${pw/2}" cy="${ph/2}" rx="${pw*0.28}" ry="${ph*0.32}" fill="${c}55" stroke="${c}" stroke-width="1"/>
-      <ellipse cx="${pw/2}" cy="${ph/2}" rx="${pw*0.12}" ry="${ph*0.14}" fill="${c}" stroke="none"/>
-      <line x1="2" y1="${ph*0.5}" x2="${pw-2}" y2="${ph*0.5}" stroke="${c}" stroke-width="0.5" opacity="0.3"/>
-    `
-  },
-  {
-    id:'mixer', name:'Mischpult', cat:'audio',
-    w:1.20, h:0.70, scalable:true,
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="4" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-      ${[0,1,2,3,4,5,6,7].map(i=>`<rect x="${pw*0.06+i*(pw*0.1)}" y="${ph*0.15}" width="${pw*0.07}" height="${ph*0.55}" rx="2" fill="${c}44" stroke="${c}" stroke-width="0.8"/><circle cx="${pw*0.095+i*(pw*0.1)}" cy="${ph*0.62}" r="${pw*0.025}" fill="${c}" stroke="none"/>`).join('')}
-      <rect x="${pw*0.85}" y="${ph*0.15}" width="${pw*0.12}" height="${ph*0.55}" rx="2" fill="${c}55" stroke="${c}" stroke-width="1"/>
-    `
-  },
-
-  // ══════════ LICHT ══════════
-  {
-    id:'moving-head', name:'Moving Head', cat:'licht',
-    w:0.35, h:0.35, scalable:false,
-    draw:(c,pw,ph)=>`
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)/2-2}" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.22}" fill="${c}66" stroke="${c}" stroke-width="1.2"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.10}" fill="${c}" stroke="none"/>
-      ${[0,60,120,180,240,300].map(a=>`<line x1="${pw/2}" y1="${ph/2}" x2="${pw/2+Math.cos(a*Math.PI/180)*Math.min(pw,ph)*0.38}" y2="${ph/2+Math.sin(a*Math.PI/180)*Math.min(pw,ph)*0.38}" stroke="${c}" stroke-width="0.8" opacity="0.5"/>`).join('')}
-    `
-  },
-  {
-    id:'par', name:'PAR / Fluter', cat:'licht',
-    w:0.25, h:0.25, scalable:false,
-    draw:(c,pw,ph)=>`
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)/2-2}" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.28}" fill="${c}77" stroke="${c}" stroke-width="1"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.10}" fill="${c}" stroke="none"/>
-    `
-  },
-  {
-    id:'followspot', name:'Followspot', cat:'licht',
-    w:0.40, h:0.70, scalable:false,
-    draw:(c,pw,ph)=>`
-      <rect x="${pw*0.25}" y="${ph*0.05}" width="${pw*0.5}" height="${ph*0.45}" rx="3" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <polygon points="${pw*0.10},${ph*0.55} ${pw*0.90},${ph*0.55} ${pw*0.65},${ph*0.95} ${pw*0.35},${ph*0.95}" fill="${c}22" stroke="${c}" stroke-width="1.2"/>
-      <circle cx="${pw/2}" cy="${ph*0.28}" r="${pw*0.18}" fill="${c}66" stroke="${c}" stroke-width="1"/>
-    `
-  },
-  {
-    id:'led-bar', name:'LED Bar', cat:'licht',
-    w:1.00, h:0.12, scalable:true,
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="2" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-      ${Array.from({length:10},(_,i)=>`<circle cx="${pw*0.06+i*(pw*0.09)}" cy="${ph/2}" r="${ph*0.28}" fill="${c}99" stroke="none"/>`).join('')}
+      <polygon points="${pw/2},2 ${pw-2},${ph-2} 2,${ph-2}" fill="${c}22" stroke="${c}" stroke-width="2"/>
     `
   },
 
   // ══════════ RIGGING ══════════
   {
-    id:'traverse-straight', name:'Traverse gerade', cat:'rigging',
-    w:3.00, h:0.20, scalable:true,
-    draw:(c,pw,ph)=>{const n=Math.max(2,Math.round(pw/10));return `
-      <rect x="2" y="${ph*0.1}" width="${pw-4}" height="${ph*0.8}" rx="2" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-      <line x1="2" y1="${ph*0.3}" x2="${pw-2}" y2="${ph*0.3}" stroke="${c}" stroke-width="0.8" stroke-dasharray="4 4"/>
-      <line x1="2" y1="${ph*0.7}" x2="${pw-2}" y2="${ph*0.7}" stroke="${c}" stroke-width="0.8" stroke-dasharray="4 4"/>
-      ${Array.from({length:n},(_,i)=>`<line x1="${pw*i/Math.max(1,n-1)}" y1="${ph*0.1}" x2="${pw*i/Math.max(1,n-1)}" y2="${ph*0.9}" stroke="${c}" stroke-width="0.6" opacity="0.5"/>`).join('')}
-    `;}
+    id:'traverse', name:'Traverse', cat:'rigging',
+    w:2.00, h:0.29, scalable:true,
+    draw:(c,pw,ph)=>{
+      const topY=ph*0.12, botY=ph*0.88;
+      const n=Math.max(1,Math.round(pw/(ph*1.5)));
+      let diags='';
+      for(let i=0;i<n;i++){
+        const x0=pw*i/n, x1=pw*(i+1)/n;
+        diags+=`<line x1="${x0}" y1="${topY}" x2="${x1}" y2="${botY}" stroke="${c}" stroke-width="1.2"/>`;
+        diags+=`<line x1="${x0}" y1="${botY}" x2="${x1}" y2="${topY}" stroke="${c}" stroke-width="1.2"/>`;
+      }
+      return `
+        <rect x="0" y="0" width="${pw}" height="${ph}" rx="0" fill="${c}10" stroke="none"/>
+        <line x1="0" y1="${topY}" x2="${pw}" y2="${topY}" stroke="${c}" stroke-width="2"/>
+        <line x1="0" y1="${botY}" x2="${pw}" y2="${botY}" stroke="${c}" stroke-width="2"/>
+        ${diags}
+      `;
+    }
   },
   {
-    id:'traverse-corner', name:'Traverse Ecke', cat:'rigging',
-    w:0.30, h:0.30, scalable:false,
-    draw:(c,pw,ph)=>`
-      <path d="M 2,${ph/2} L ${pw/2},${ph/2} L ${pw/2},2" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round"/>
-      <path d="M 4,${ph/2+4} L ${pw/2-4},${ph/2+4} L ${pw/2-4},4" fill="none" stroke="${c}44" stroke-width="2"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="4" fill="${c}" stroke="none"/>
-    `
-  },
-  {
-    id:'hoist', name:'Hoist / Motor', cat:'rigging',
-    w:0.25, h:0.25, scalable:false,
-    draw:(c,pw,ph)=>`
-      <rect x="${pw*0.1}" y="${ph*0.1}" width="${pw*0.8}" height="${ph*0.8}" rx="4" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.22}" fill="${c}66" stroke="${c}" stroke-width="1"/>
-      <text x="${pw/2}" y="${ph*0.6}" text-anchor="middle" font-size="${ph*0.25}" font-weight="700" fill="${c}" font-family="JetBrains Mono,monospace">H</text>
-    `
-  },
-
-  // ══════════ BÜHNE ══════════
-  {
-    id:'stage-element', name:'Bühnenelement', cat:'buehne',
-    w:2.00, h:1.00, scalable:true,
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="3" fill="${c}22" stroke="${c}" stroke-width="2"/>
-      <line x1="${pw*0.25}" y1="2" x2="${pw*0.25}" y2="${ph-2}" stroke="${c}" stroke-width="0.8" opacity="0.4"/>
-      <line x1="${pw*0.5}" y1="2" x2="${pw*0.5}" y2="${ph-2}" stroke="${c}" stroke-width="0.8" opacity="0.4"/>
-      <line x1="${pw*0.75}" y1="2" x2="${pw*0.75}" y2="${ph-2}" stroke="${c}" stroke-width="0.8" opacity="0.4"/>
-      <text x="${pw/2}" y="${ph/2+4}" text-anchor="middle" font-size="${Math.min(pw,ph)*0.18}" font-weight="700" fill="${c}" font-family="JetBrains Mono,monospace">BÜHNE</text>
-    `
-  },
-  {
-    id:'podest', name:'Podest', cat:'buehne',
-    w:1.00, h:1.00, scalable:true,
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="3" fill="${c}33" stroke="${c}" stroke-width="2"/>
-      <rect x="${pw*0.12}" y="${ph*0.12}" width="${pw*0.76}" height="${ph*0.76}" rx="2" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.5"/>
-    `
-  },
-  {
-    id:'rednerpult', name:'Rednerpult', cat:'buehne',
-    w:0.60, h:0.50, scalable:false,
-    draw:(c,pw,ph)=>`
-      <polygon points="${pw*0.15},${ph*0.95} ${pw*0.85},${ph*0.95} ${pw*0.75},${ph*0.05} ${pw*0.25},${ph*0.05}" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <line x1="${pw*0.3}" y1="${ph*0.35}" x2="${pw*0.7}" y2="${ph*0.35}" stroke="${c}" stroke-width="1" opacity="0.6"/>
-      <line x1="${pw*0.3}" y1="${ph*0.5}" x2="${pw*0.7}" y2="${ph*0.5}" stroke="${c}" stroke-width="1" opacity="0.6"/>
-    `
-  },
-  {
-    id:'treppe', name:'Treppe', cat:'buehne',
-    w:1.00, h:0.80, scalable:true,
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" fill="${c}11" stroke="${c}" stroke-width="1.5"/>
-      ${[1,2,3,4].map(i=>`<line x1="${pw*0.03}" y1="${ph*i/4}" x2="${pw*0.97}" y2="${ph*i/4}" stroke="${c}" stroke-width="1.2"/>`).join('')}
-      <polygon points="${pw*0.03},${ph*0.97} ${pw*0.97},${ph*0.03} ${pw*0.97},${ph*0.97}" fill="${c}22" stroke="none"/>
-    `
+    id:'haengepunkt', name:'Hängepunkt', cat:'rigging',
+    w:0.50, h:0.50, scalable:false,
+    draw:(c,pw,ph)=>{
+      const cx=pw/2, cy=ph/2, r=Math.min(pw,ph)*0.38;
+      return `
+        <line x1="${cx}" y1="0" x2="${cx}" y2="${ph}" stroke="${c}" stroke-width="1.8"/>
+        <line x1="0" y1="${cy}" x2="${pw}" y2="${cy}" stroke="${c}" stroke-width="1.8"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${c}" stroke-width="1.8"/>
+        <path d="M${cx},${cy} L${cx+r},${cy} A${r},${r} 0 0,1 ${cx},${cy+r} Z" fill="${c}" stroke="none"/>
+        <path d="M${cx},${cy} L${cx-r},${cy} A${r},${r} 0 0,1 ${cx},${cy-r} Z" fill="${c}" stroke="none"/>
+      `;
+    }
   },
 
-  // ══════════ STROM ══════════
+  // ══════════ MULTIMEDIA ══════════
   {
-    id:'verteiler', name:'Stromverteiler', cat:'strom',
-    w:0.60, h:0.40, scalable:false,
-    forcedColor:'#ff6b47',
+    // 1×1m Quadrat, mittig 0.29×0.29 Quadrat, direkt darunter 1.7m Balken
+    id:'flatscreen-75', name:'Flatscreen 75"', cat:'multimedia',
+    w:1.00, h:1.00, scalable:false,
+    draw:(c,pw,ph)=>{
+      const smallW=pw*0.29, smallH=ph*0.29;
+      const smallX=(pw-smallW)/2, smallY=(ph-smallH)/2;
+      const barW=pw*1.7, barH=ph*0.05;
+      const barX=(pw-barW)/2, barY=smallY+smallH;
+      return `
+        <rect x="0" y="0" width="${pw}" height="${ph}" rx="0" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
+        <rect x="${smallX}" y="${smallY}" width="${smallW}" height="${smallH}" rx="0" fill="${c}33" stroke="${c}" stroke-width="1.2"/>
+        <rect x="${barX}" y="${barY}" width="${barW}" height="${barH}" rx="0" fill="${c}" stroke="none"/>
+      `;
+    }
+  },
+  {
+    // Skizze: abgerundetes Rechteck, Trapez unten, zwei Punkte oben, dicker Balken mittig
+    id:'flatscreen-55', name:'Flatscreen 55"', cat:'multimedia',
+    w:1.00, h:0.60, scalable:false,
     draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="3" fill="${c}33" stroke="${c}" stroke-width="2"/>
-      ${[0,1,2,3].map(i=>`<circle cx="${pw*0.18+i*(pw*0.22)}" cy="${ph*0.45}" r="${ph*0.18}" fill="${c}55" stroke="${c}" stroke-width="1.2"/>`).join('')}
-      <text x="${pw/2}" y="${ph*0.88}" text-anchor="middle" font-size="${ph*0.18}" font-weight="700" fill="${c}" font-family="JetBrains Mono,monospace">POWER</text>
+      <rect x="1" y="1" width="${pw-2}" height="${ph*0.65}" rx="${ph*0.12}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
+      <polygon points="${pw*0.08},${ph*0.65} ${pw*0.92},${ph*0.65} ${pw*0.78},${ph*0.98} ${pw*0.22},${ph*0.98}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
+      <circle cx="${pw*0.35}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
+      <circle cx="${pw*0.65}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
+      <rect x="0" y="${ph*0.46}" width="${pw}" height="${ph*0.13}" rx="0" fill="${c}" stroke="none"/>
     `
   },
   {
-    id:'cee-dose', name:'CEE-Dose', cat:'strom',
-    w:0.15, h:0.15, scalable:false,
-    forcedColor:'#ff6b47',
+    // gleiche Form wie 55" nur etwas schmäler (43" = 0.95m Balken)
+    id:'flatscreen-43', name:'Flatscreen 43"', cat:'multimedia',
+    w:1.00, h:0.60, scalable:false,
     draw:(c,pw,ph)=>`
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)/2-2}" fill="${c}33" stroke="${c}" stroke-width="2"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.28}" fill="${c}66" stroke="${c}" stroke-width="1.2"/>
-      ${[90,210,330].map(a=>`<circle cx="${pw/2+Math.cos(a*Math.PI/180)*Math.min(pw,ph)*0.20}" cy="${ph/2+Math.sin(a*Math.PI/180)*Math.min(pw,ph)*0.20}" r="${Math.min(pw,ph)*0.06}" fill="${c}" stroke="none"/>`).join('')}
-    `
-  },
-  {
-    id:'schuko', name:'Schukodose', cat:'strom',
-    w:0.10, h:0.10, scalable:false,
-    forcedColor:'#ff6b47',
-    draw:(c,pw,ph)=>`
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)/2-2}" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph*0.38}" r="${Math.min(pw,ph)*0.09}" fill="${c}" stroke="none"/>
-      <circle cx="${pw/2}" cy="${ph*0.62}" r="${Math.min(pw,ph)*0.09}" fill="${c}" stroke="none"/>
-    `
-  },
-
-  // ══════════ MOBILIAR ══════════
-  {
-    id:'stuhl', name:'Stuhl', cat:'mobiliar',
-    w:0.45, h:0.45, scalable:false,
-    draw:(c,pw,ph)=>`
-      <rect x="${pw*0.1}" y="${ph*0.35}" width="${pw*0.8}" height="${ph*0.55}" rx="2" fill="${c}44" stroke="${c}" stroke-width="1.5"/>
-      <rect x="${pw*0.1}" y="${ph*0.1}" width="${pw*0.8}" height="${ph*0.28}" rx="2" fill="${c}22" stroke="${c}" stroke-width="1.2"/>
-      <line x1="${pw*0.22}" y1="${ph*0.38}" x2="${pw*0.22}" y2="${ph*0.9}" stroke="${c}" stroke-width="0.8" opacity="0.5"/>
-      <line x1="${pw*0.78}" y1="${ph*0.38}" x2="${pw*0.78}" y2="${ph*0.9}" stroke="${c}" stroke-width="0.8" opacity="0.5"/>
-    `
-  },
-  {
-    id:'tisch-rect', name:'Tisch rechteckig', cat:'mobiliar',
-    w:1.60, h:0.80, scalable:true,
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="3" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-      <rect x="${pw*0.06}" y="${ph*0.1}" width="${pw*0.88}" height="${ph*0.8}" rx="2" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.4"/>
-    `
-  },
-  {
-    id:'tisch-round', name:'Tisch rund', cat:'mobiliar',
-    w:0.90, h:0.90, scalable:true,
-    draw:(c,pw,ph)=>`
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)/2-2}" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.38}" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.4"/>
-    `
-  },
-  {
-    id:'stehtisch', name:'Stehtisch', cat:'mobiliar',
-    w:0.70, h:0.70, scalable:false,
-    draw:(c,pw,ph)=>`
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)/2-2}" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.22}" fill="${c}66" stroke="${c}" stroke-width="1"/>
-    `
-  },
-  {
-    id:'barhocker', name:'Barhocker', cat:'mobiliar',
-    w:0.35, h:0.35, scalable:false,
-    draw:(c,pw,ph)=>`
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)/2-2}" fill="${c}44" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw/2}" cy="${ph/2}" r="${Math.min(pw,ph)*0.18}" fill="${c}88" stroke="${c}" stroke-width="1"/>
-    `
-  },
-  {
-    id:'sofa', name:'Sofa', cat:'mobiliar',
-    w:2.00, h:0.90, scalable:true,
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="${ph*0.2}" width="${pw-4}" height="${ph*0.75}" rx="5" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <rect x="${pw*0.06}" y="${ph*0.05}" width="${pw*0.88}" height="${ph*0.35}" rx="4" fill="${c}22" stroke="${c}" stroke-width="1.2"/>
-      <line x1="${pw*0.33}" y1="${ph*0.2}" x2="${pw*0.33}" y2="${ph*0.95}" stroke="${c}" stroke-width="1" opacity="0.4"/>
-      <line x1="${pw*0.66}" y1="${ph*0.2}" x2="${pw*0.66}" y2="${ph*0.95}" stroke="${c}" stroke-width="1" opacity="0.4"/>
-    `
-  },
-
-  // ══════════ SONSTIGES ══════════
-  {
-    id:'absperrung', name:'Absperrung', cat:'sonstiges',
-    w:2.00, h:0.10, scalable:true,
-    draw:(c,pw,ph)=>{const n=Math.max(3,Math.round(pw/10));return `
-      <rect x="2" y="${ph*0.1}" width="${pw-4}" height="${ph*0.8}" rx="2" fill="${c}44" stroke="${c}" stroke-width="1.5"/>
-      ${Array.from({length:n},(_,i)=>`<line x1="${pw*i/Math.max(1,n-1)}" y1="${ph*0.1}" x2="${pw*i/Math.max(1,n-1)}" y2="${ph*0.9}" stroke="${c}" stroke-width="2" opacity="0.5"/>`).join('')}
-    `;}
-  },
-  {
-    id:'eingang', name:'Eingang', cat:'sonstiges',
-    w:1.20, h:0.20, scalable:false,
-    forcedColor:'#47ffb0',
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="3" fill="${c}33" stroke="${c}" stroke-width="2"/>
-      <text x="${pw/2}" y="${ph*0.72}" text-anchor="middle" font-size="${ph*0.55}" font-weight="800" fill="${c}" font-family="Syne,sans-serif">EINGANG</text>
-      <polygon points="${pw*0.04},${ph/2} ${pw*0.14},${ph*0.2} ${pw*0.14},${ph*0.8}" fill="${c}" stroke="none"/>
-    `
-  },
-  {
-    id:'notausgang', name:'Notausgang', cat:'sonstiges',
-    w:0.30, h:0.30, scalable:false,
-    forcedColor:'#47ffb0',
-    draw:(c,pw,ph)=>`
-      <rect x="2" y="2" width="${pw-4}" height="${ph-4}" rx="4" fill="${c}33" stroke="${c}" stroke-width="2"/>
-      <text x="${pw/2}" y="${ph*0.45}" text-anchor="middle" font-size="${ph*0.22}" font-weight="800" fill="${c}" font-family="Syne,sans-serif">NOT</text>
-      <text x="${pw/2}" y="${ph*0.72}" text-anchor="middle" font-size="${ph*0.22}" font-weight="800" fill="${c}" font-family="Syne,sans-serif">EXIT</text>
-    `
-  },
-  {
-    id:'kamera', name:'Kamera', cat:'sonstiges',
-    w:0.50, h:0.35, scalable:false,
-    draw:(c,pw,ph)=>`
-      <rect x="${pw*0.05}" y="${ph*0.15}" width="${pw*0.65}" height="${ph*0.7}" rx="3" fill="${c}33" stroke="${c}" stroke-width="1.5"/>
-      <polygon points="${pw*0.72},${ph*0.25} ${pw*0.96},${ph*0.15} ${pw*0.96},${ph*0.85} ${pw*0.72},${ph*0.75}" fill="${c}55" stroke="${c}" stroke-width="1.2"/>
-      <circle cx="${pw*0.28}" cy="${ph/2}" r="${ph*0.22}" fill="${c}66" stroke="${c}" stroke-width="1"/>
+      <rect x="1" y="1" width="${pw-2}" height="${ph*0.65}" rx="${ph*0.12}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
+      <polygon points="${pw*0.08},${ph*0.65} ${pw*0.92},${ph*0.65} ${pw*0.78},${ph*0.98} ${pw*0.22},${ph*0.98}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
+      <circle cx="${pw*0.35}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
+      <circle cx="${pw*0.65}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
+      <rect x="${pw*0.025}" y="${ph*0.46}" width="${pw*0.95}" height="${ph*0.13}" rx="0" fill="${c}" stroke="none"/>
     `
   },
 ];
 
-// Kategorien-Metadaten
 const LIB_CATS = {
-  audio:    {label:'Audio',    icon:'🎵'},
-  licht:    {label:'Licht',    icon:'💡'},
-  rigging:  {label:'Rigging',  icon:'🏗'},
-  buehne:   {label:'Bühne',    icon:'🎭'},
-  strom:    {label:'Strom',    icon:'⚡'},
-  mobiliar: {label:'Mobiliar', icon:'🪑'},
-  sonstiges:{label:'Sonstiges',icon:'🚧'},
+  generic:    {label:'Generic',    icon:'⬜'},
+  rigging:    {label:'Rigging',    icon:'🏗'},
+  multimedia: {label:'Multimedia', icon:'📺'},
 };
 </script>
 <script>
@@ -740,7 +564,7 @@ let viewScale=1,panX=0,panY=0;
 let planOpacity=1;
 let pxPerUnit=null,unit='m',calKnownVal=1,calibrated=false;
 let groups=[],activeGroupId=null,idCounter=0;
-let mode='measure';
+let mode='select';
 let drawing=false,startPt=null,activeLine=null;
 let polyPts=[],polySegs=[],polyRubber=null;
 let anglePts=[],angleLines=[],angleRubber=null;
@@ -756,8 +580,11 @@ let pendingTextPos=null;
 let calPt1=null,calPt2=null,calPxLen=null;
 let ignoreNextClick=false;
 let pendingShape=null;
-let selectedSymItemId=null; // currently selected symbol (shows handles)
 let editingSymItem=null;    // symbol being edited in modal
+let selectedSymItemId=null; // single selection (für Rotation-Handle etc.)
+let selectedIds=new Set();  // multi-selection
+// Lasso state
+let lassoing=false,lassoStart=null,lassoRect=null;
 
 // lib drag state
 let libDragging=false;
@@ -906,13 +733,13 @@ function dropSymbol(sym,pos){
   if(!calibrated){alert('Bitte zuerst kalibrieren.');return;}
   if(!activeGroupId){alert('Bitte zuerst eine Gruppe auswählen.');return;}
   if(!pxPerUnit){return;}
-  // compute pixel size from real size
   const pw=sym.w*pxPerUnit;
   const ph=sym.h*pxPerUnit;
-  // center on drop point
   const x=pos.x-pw/2;
   const y=pos.y-ph/2;
-  addSymbol(sym,x,y,pw,ph,0,sym.name);
+  // Traverse: Label = Länge
+  const label=sym.id==='traverse'?fmtVal(sym.w,unit):sym.name;
+  addSymbol(sym,x,y,pw,ph,0,label);
 }
 
 function addSymbol(sym,x,y,pw,ph,rot,label){
@@ -998,8 +825,9 @@ function showCalLock(v){calLock.classList.toggle('hidden',!v);}
 // ══════════════════════════════════════════
 document.addEventListener('keydown',e=>{
   if(e.code==='Space'&&!e.repeat){spaceDown=true;if(pdfCanvas.width)container.style.cursor='grab';e.preventDefault();}
-  if(e.code==='Escape'){cancelDrawing();deselectSymbol();}
-  if((e.code==='Delete'||e.code==='Backspace')&&selectedSymItemId&&document.activeElement===document.body){
+  if(e.code==='Escape'){cancelDrawing();deselectSymbol();setMode('select');}
+  if(e.code==='KeyV'&&document.activeElement===document.body){setMode('select');}
+  if((e.code==='Delete'||e.code==='Backspace')&&selectedIds.size&&document.activeElement===document.body){
     deleteSelectedSymbol();
   }
 });
@@ -1024,7 +852,8 @@ function canvasPos(e){const r=container.getBoundingClientRect();return{x:(e.clie
 function groupColor(){const g=groups.find(g=>g.id===activeGroupId);return g?g.color:'#e8ff47';}
 function updateCursor(){
   if(dragging){container.style.cursor='grabbing';return;}
-  container.style.cursor=spaceDown?'grab':'crosshair';
+  if(spaceDown){container.style.cursor='grab';return;}
+  container.style.cursor=mode==='select'?'default':'crosshair';
 }
 
 function findDraggable(mx,my){
@@ -1085,7 +914,14 @@ function itemCenter(item){
   return{cx:(item.p1.x+item.p2.x)/2,cy:(item.p1.y+item.p2.y)/2};
 }
 
-// ── rotation handle drag ──
+function moveItemCenter(item,newCx,newCy){
+  if(item.type==='symbol'){item.x=newCx-item.pw/2;item.y=newCy-item.ph/2;}
+  else if(item.type==='text'){item.pos={x:newCx,y:newCy};}
+  else if(item.type==='measure'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.x1+=dx;item.y1+=dy;item.x2+=dx;item.y2+=dy;}
+  else if(item.type==='polyline'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));}
+  else if(item.type==='angle'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));}
+  else if(item.p1){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.p1={x:item.p1.x+dx,y:item.p1.y+dy};item.p2={x:item.p2.x+dx,y:item.p2.y+dy};}
+}
 let rotDragging=false,rotItem=null,rotCenter=null,rotStartAngle=0,rotStartItemAngle=0;
 
 wrap.addEventListener('mousemove',e=>{
@@ -1096,36 +932,77 @@ wrap.addEventListener('mousemove',e=>{
     const pos=canvasPos(e);
     const angle=Math.atan2(pos.y-rotCenter.cy,pos.x-rotCenter.cx)*180/Math.PI;
     let newRot=((rotStartItemAngle+(angle-rotStartAngle))%360+360)%360;
+    // Soft-snap bei 45°-Schritten (Einrasten wenn näher als 8°)
+    const snapStep=45;
+    const nearest=Math.round(newRot/snapStep)*snapStep%360;
+    const diff=Math.min(Math.abs(newRot-nearest),360-Math.abs(newRot-nearest));
+    if(diff<8)newRot=nearest;
     rotItem.rot=Math.round(newRot);
     const el=document.getElementById('item-'+rotItem.id);
     for(const grp of groups){const found=grp.items.find(i=>i.id===rotItem.id);if(found){if(el){el.innerHTML='';redrawItem(el,rotItem,grp.color);}break;}}
     return;
   }
 
+  // Lasso zeichnen
+  if(lassoing&&lassoStart&&lassoRect){
+    const pos=canvasPos(e);
+    const rx=Math.min(lassoStart.x,pos.x),ry=Math.min(lassoStart.y,pos.y);
+    const rw=Math.abs(pos.x-lassoStart.x),rh=Math.abs(pos.y-lassoStart.y);
+    lassoRect.setAttribute('x',rx);lassoRect.setAttribute('y',ry);
+    lassoRect.setAttribute('width',rw);lassoRect.setAttribute('height',rh);
+    return;
+  }
+
   if(dragging){
     const pos=canvasPos(e);
     const item=dragging.item;
-    if(!didDrag&&Math.hypot(pos.x-dragStartX,pos.y-dragStartY)<4)return;
-    didDrag=true;
-    if(item.type==='symbol'){
-      item.x=pos.x-dragOffX;item.y=pos.y-dragOffY;
-    } else if(item.type==='text'){
-      item.pos={x:pos.x-dragOffX,y:pos.y-dragOffY};
-    } else if(item.type==='measure'){
-      const dx=pos.x-dragOffX-itemCenter(item).cx,dy=pos.y-dragOffY-itemCenter(item).cy;
-      item.x1+=dx;item.y1+=dy;item.x2+=dx;item.y2+=dy;
-    } else if(item.type==='polyline'){
-      const c=itemCenter(item);const dx=pos.x-dragOffX-c.cx,dy=pos.y-dragOffY-c.cy;
-      item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));
-    } else if(item.type==='angle'){
-      const c=itemCenter(item);const dx=pos.x-dragOffX-c.cx,dy=pos.y-dragOffY-c.cy;
-      item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));
-    } else {
-      const dx=pos.x-dragOffX-itemCenter(item).cx,dy=pos.y-dragOffY-itemCenter(item).cy;
-      item.p1={x:item.p1.x+dx,y:item.p1.y+dy};item.p2={x:item.p2.x+dx,y:item.p2.y+dy};
+    if(!didDrag&&Math.hypot(pos.x-dragStartX,pos.y-dragStartY)<12)return;
+    // Beim ersten echten Drag: Offsets für alle selektierten Items merken
+    if(!didDrag){
+      didDrag=true;
+      // Speichere Startpositionen aller selektierten Items
+      dragging._multiOffsets={};
+      selectedIds.forEach(id=>{
+        for(const grp of groups){
+          const it=grp.items.find(i=>i.id===id);
+          if(it){
+            const c=itemCenter(it);
+            dragging._multiOffsets[id]={dx:c.cx-dragStartX,dy:c.cy-dragStartY,item:it};
+            break;
+          }
+        }
+      });
     }
-    const el=document.getElementById('item-'+item.id);
-    for(const grp of groups){if(grp.items.find(i=>i.id===item.id)){if(el){el.innerHTML='';redrawItem(el,item,grp.color);}break;}}
+    // Multi-drag: alle selektierten Items mitbewegen
+    if(selectedIds.size>1&&dragging._multiOffsets){
+      Object.values(dragging._multiOffsets).forEach(({dx,dy,item:it})=>{
+        const newCx=pos.x+dx,newCy=pos.y+dy;
+        moveItemCenter(it,newCx,newCy);
+        const el=document.getElementById('item-'+it.id);
+        for(const grp of groups){if(grp.items.find(i=>i.id===it.id)){if(el){el.innerHTML='';redrawItem(el,it,grp.color);}break;}}
+      });
+    } else {
+      // Single item drag
+      if(item.type==='symbol'){
+        item.x=pos.x-dragOffX;item.y=pos.y-dragOffY;
+      } else if(item.type==='text'){
+        item.pos={x:pos.x-dragOffX,y:pos.y-dragOffY};
+      } else if(item.type==='measure'){
+        const dx=pos.x-dragOffX-itemCenter(item).cx,dy=pos.y-dragOffY-itemCenter(item).cy;
+        item.x1+=dx;item.y1+=dy;item.x2+=dx;item.y2+=dy;
+      } else if(item.type==='polyline'){
+        const c=itemCenter(item);const dx=pos.x-dragOffX-c.cx,dy=pos.y-dragOffY-c.cy;
+        item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));
+      } else if(item.type==='angle'){
+        const c=itemCenter(item);const dx=pos.x-dragOffX-c.cx,dy=pos.y-dragOffY-c.cy;
+        item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));
+      } else {
+        const dx=pos.x-dragOffX-itemCenter(item).cx,dy=pos.y-dragOffY-itemCenter(item).cy;
+        item.p1={x:item.p1.x+dx,y:item.p1.y+dy};item.p2={x:item.p2.x+dx,y:item.p2.y+dy};
+      }
+      const el=document.getElementById('item-'+item.id);
+      for(const grp of groups){if(grp.items.find(i=>i.id===item.id)){if(el){el.innerHTML='';redrawItem(el,item,grp.color);}break;}}
+    }
     return;
   }
 
@@ -1173,16 +1050,40 @@ wrap.addEventListener('mousedown',e=>{
       }}
     }
     const hit=findDraggable(pos.x,pos.y);
+    const isSelectMode=mode==='select';
     if(hit&&mode!=='calibrate'){
-      // select symbol on click
-      if(hit.item.type==='symbol'){selectSymbol(hit.item.id);}
-      dragging=hit;didDrag=false;dragStartX=pos.x;dragStartY=pos.y;
-      if(hit.item.type==='symbol'){dragOffX=pos.x-hit.item.x;dragOffY=pos.y-hit.item.y;}
-      else if(hit.item.type==='text'){dragOffX=pos.x-hit.item.pos.x;dragOffY=pos.y-hit.item.pos.y;}
-      else{const c=itemCenter(hit.item);dragOffX=pos.x-c.cx;dragOffY=pos.y-c.cy;}
-      container.style.cursor='grabbing';e.preventDefault();
+      const isShift=e.shiftKey;
+      // Auswahl nur im Select-Modus
+      if(isSelectMode){
+        if(isShift){
+          selectSymbol(hit.item.id,true);
+        } else {
+          if(!selectedIds.has(hit.item.id))selectSymbol(hit.item.id,false);
+        }
+      }
+      // Verschieben nur im Select-Modus
+      if(isSelectMode){
+        dragging=hit;didDrag=false;dragStartX=pos.x;dragStartY=pos.y;
+        if(hit.item.type==='symbol'){dragOffX=pos.x-hit.item.x;dragOffY=pos.y-hit.item.y;}
+        else if(hit.item.type==='text'){dragOffX=pos.x-hit.item.pos.x;dragOffY=pos.y-hit.item.pos.y;}
+        else{const c=itemCenter(hit.item);dragOffX=pos.x-c.cx;dragOffY=pos.y-c.cy;}
+        container.style.cursor='grabbing';e.preventDefault();
+      }
+    } else if(!hit&&mode==='select'){
+      // Lasso starten
+      if(!e.shiftKey)deselectAll();
+      lassoing=true;lassoStart={x:pos.x,y:pos.y};
+      if(!lassoRect){
+        lassoRect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        lassoRect.setAttribute('fill','#47c8ff22');lassoRect.setAttribute('stroke','#47c8ff');
+        lassoRect.setAttribute('stroke-width','1');lassoRect.setAttribute('stroke-dasharray','5 3');
+        svg.appendChild(lassoRect);
+      }
+      lassoRect.setAttribute('x',pos.x);lassoRect.setAttribute('y',pos.y);
+      lassoRect.setAttribute('width',0);lassoRect.setAttribute('height',0);
+      e.preventDefault();
     } else if(!hit){
-      deselectSymbol();
+      deselectAll();
     }
   }
 });
@@ -1190,10 +1091,20 @@ wrap.addEventListener('mousedown',e=>{
 wrap.addEventListener('mouseup',e=>{
   if(panning){panning=false;panStart=null;updateCursor();}
   if(rotDragging){rotDragging=false;rotItem=null;renderSidebar();return;}
+  if(lassoing){
+    lassoing=false;
+    if(lassoRect){
+      const rx=parseFloat(lassoRect.getAttribute('x')),ry=parseFloat(lassoRect.getAttribute('y'));
+      const rw=parseFloat(lassoRect.getAttribute('width')),rh=parseFloat(lassoRect.getAttribute('height'));
+      selectItemsInRect(rx,ry,rw,rh);
+      lassoRect.remove();lassoRect=null;
+    }
+    return;
+  }
   if(dragging){
     if(!didDrag){
       if(dragging.item.type==='text'){justClickedItem=true;openTextEditModal(dragging.item);}
-      else if(dragging.item.type==='symbol'){justClickedItem=true;openSymEditModal(dragging.item);}
+      else if(dragging.item.type==='symbol'&&selectedIds.size<=1){justClickedItem=true;openSymEditModal(dragging.item);}
     } else {justDragged=true;}
     dragging=null;didDrag=false;updateCursor();
   }
@@ -1260,39 +1171,72 @@ wrap.addEventListener('contextmenu',e=>{
 });
 
 // ══════════════════════════════════════════
-// SYMBOL SELECTION
+// SYMBOL SELECTION (multi-select)
 // ══════════════════════════════════════════
-function selectSymbol(id){
-  if(selectedSymItemId===id)return;
-  deselectSymbol(false);
-  selectedSymItemId=id;
-  // redraw to show handles
+function selectSymbol(id,addToSelection=false){
+  if(!addToSelection){
+    // Einzelauswahl — alles andere abwählen
+    const oldIds=[...selectedIds];
+    selectedIds.clear();
+    selectedSymItemId=id;
+    selectedIds.add(id);
+    oldIds.forEach(oid=>{if(oid!==id)redrawItemById(oid);});
+  } else {
+    // Shift+Klick: toggle
+    if(selectedIds.has(id)){
+      selectedIds.delete(id);
+      if(selectedSymItemId===id)selectedSymItemId=selectedIds.size?[...selectedIds][selectedIds.size-1]:null;
+    } else {
+      selectedIds.add(id);
+      selectedSymItemId=id;
+    }
+  }
+  redrawItemById(id);
+}
+
+function deselectAll(redraw=true){
+  const oldIds=[...selectedIds];
+  selectedIds.clear();selectedSymItemId=null;
+  if(redraw)oldIds.forEach(id=>redrawItemById(id));
+}
+// Alias für bestehende Aufrufe
+function deselectSymbol(redraw=true){deselectAll(redraw);}
+
+function redrawItemById(id){
   for(const grp of groups){
     const item=grp.items.find(i=>i.id===id);
     if(item){const el=document.getElementById('item-'+id);if(el){el.innerHTML='';redrawItem(el,item,grp.color);}break;}
   }
 }
 
-function deselectSymbol(redraw=true){
-  if(!selectedSymItemId)return;
-  const old=selectedSymItemId;selectedSymItemId=null;
-  if(redraw){
+function deleteSelectedSymbol(){
+  if(!selectedIds.size)return;
+  selectedIds.forEach(id=>{
     for(const grp of groups){
-      const item=grp.items.find(i=>i.id===old);
-      if(item){const el=document.getElementById('item-'+old);if(el){el.innerHTML='';redrawItem(el,item,grp.color);}break;}
+      const idx=grp.items.findIndex(i=>i.id===id);
+      if(idx>=0){const el=document.getElementById('item-'+id);if(el)el.remove();grp.items.splice(idx,1);break;}
     }
-  }
+  });
+  selectedIds.clear();selectedSymItemId=null;renderSidebar();
 }
 
-function deleteSelectedSymbol(){
-  if(!selectedSymItemId)return;
-  for(const grp of groups){
-    const idx=grp.items.findIndex(i=>i.id===selectedSymItemId);
-    if(idx>=0){
-      const el=document.getElementById('item-'+selectedSymItemId);if(el)el.remove();
-      grp.items.splice(idx,1);selectedSymItemId=null;renderSidebar();return;
-    }
-  }
+// Lasso: alle Items in Rect selektieren
+function selectItemsInRect(rx,ry,rw,rh){
+  const x1=Math.min(rx,rx+rw),y1=Math.min(ry,ry+rh);
+  const x2=Math.max(rx,rx+rw),y2=Math.max(ry,ry+rh);
+  const oldIds=[...selectedIds];
+  selectedIds.clear();selectedSymItemId=null;
+  groups.forEach(grp=>{
+    grp.items.forEach(item=>{
+      const c=itemCenter(item);
+      if(c.cx>=x1&&c.cx<=x2&&c.cy>=y1&&c.cy<=y2){
+        selectedIds.add(item.id);selectedSymItemId=item.id;
+      }
+    });
+  });
+  // redraw changed
+  const allChanged=new Set([...oldIds,...selectedIds]);
+  allChanged.forEach(id=>redrawItemById(id));
 }
 
 // ══════════════════════════════════════════
@@ -1314,13 +1258,16 @@ function openSymEditModal(item){
     document.getElementById('sem-h').value=item.realH.toFixed(2);
   } else {scaleWrap.style.display='none';}
   document.getElementById('sym-edit-modal').classList.remove('hidden');
-  setTimeout(()=>document.getElementById('sem-label').focus(),50);
+  // Focus: scalable symbols → width field, others → label
+  setTimeout(()=>{
+    if(item.scalable) document.getElementById('sem-w').focus();
+    else document.getElementById('sem-label').focus();
+  },50);
 }
 function closeSymEditModal(){document.getElementById('sym-edit-modal').classList.add('hidden');editingSymItem=null;}
 function confirmSymEdit(){
   if(!editingSymItem)return;
   const item=editingSymItem;
-  item.label=document.getElementById('sem-label').value.trim()||item.label;
   item.rot=parseInt(document.getElementById('sem-rot').value)||0;
   item.opacity=parseInt(document.getElementById('sem-opacity').value)/100;
   if(item.scalable){
@@ -1329,7 +1276,20 @@ function confirmSymEdit(){
     if(newW>0&&newH>0&&pxPerUnit){
       item.realW=newW;item.realH=newH;
       item.pw=newW*pxPerUnit;item.ph=newH*pxPerUnit;
+      // Traverse: Label = "X.XX m" + optionaler Suffix mit Bindestrich
+      if(item.symId==='traverse'){
+        const manualLabel=document.getElementById('sem-label').value.trim();
+        const lenStr=fmtVal(newW,unit);
+        // Prüfe ob manuell ein Suffix nach Bindestrich eingegeben wurde
+        const dashIdx=manualLabel.indexOf('-');
+        const suffix=dashIdx>=0?manualLabel.slice(dashIdx):'';
+        item.label=lenStr+(suffix?suffix:'');
+      }
     }
+  }
+  // Für nicht-scalable oder nicht-Traverse: label aus Feld
+  if(item.symId!=='traverse'){
+    item.label=document.getElementById('sem-label').value.trim()||item.label;
   }
   for(const grp of groups){
     if(grp.items.find(i=>i.id===item.id)){
@@ -1395,7 +1355,7 @@ function finishCalibration(x1,y1,x2,y2,px){
   mode='measure';
   document.getElementById('cal-dot').style.background='var(--accent)';
   document.getElementById('cal-status').textContent=`✓ Kalibriert: ${fmtVal(calKnownVal,unit)}`;
-  recalcAllMeasurements();lockTools(false);setMode('measure');
+  recalcAllMeasurements();lockTools(false);setMode('select');
 }
 function recalcAllMeasurements(){
   groups.forEach(grp=>{
@@ -1410,7 +1370,6 @@ function recalcAllMeasurements(){
 }
 function lockTools(l){
   ['measure-btn','poly-btn','angle-btn','text-btn'].forEach(id=>document.getElementById(id).disabled=l);
-  ['rect-btn','circle-btn','triangle-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=l;});
 }
 lockTools(true);
 
@@ -1424,7 +1383,7 @@ function openGroupModal(editGid=null){
   document.getElementById('gm-title').textContent=grp?'Gruppe bearbeiten':'Neue Gruppe';
   document.getElementById('gm-confirm').textContent=grp?'Speichern':'Anlegen';
   document.getElementById('gm-name').value=grp?grp.name:'';
-  gmColor=grp?grp.color:COLORS[groups.length%COLORS.length];
+  gmColor=grp?grp.color:COLORS[groups.length%COLORS.length]; // COLORS[0]='#222222' = schwarz
   renderSwatches();
   document.getElementById('group-modal').classList.remove('hidden');
   setTimeout(()=>document.getElementById('gm-name').focus(),50);
@@ -1472,7 +1431,8 @@ function deleteItem(gid,iid){
   const grp=groups.find(g=>g.id===gid);if(!grp)return;
   grp.items=grp.items.filter(i=>i.id!==iid);
   const el=document.getElementById('item-'+iid);if(el)el.remove();
-  if(selectedSymItemId===iid)selectedSymItemId=null;
+  if(selectedSymItemId===iid){selectedSymItemId=null;}
+  selectedIds.delete(iid);
   renderSidebar();
 }
 function copyItem(gid,iid){
@@ -1688,7 +1648,8 @@ function fmtVal(v,u){if(v>=1000)return(v/1000).toFixed(2)+' k'+u;if(v<0.01)retur
 // ══════════════════════════════════════════
 function redrawAll(){
   svg.querySelectorAll('g[id^="item-"]').forEach(g=>g.remove());
-  groups.forEach(grp=>{grp.items.forEach(item=>{const g=mkG('item-'+item.id);if(!grp.visible)g.style.display='none';redrawItem(g,item,grp.color);svg.appendChild(g);});});
+  // Erste Gruppe in Liste = oben im Canvas = zuletzt ins SVG (SVG: letztes Element ist vorne)
+  [...groups].reverse().forEach(grp=>{grp.items.forEach(item=>{const g=mkG('item-'+item.id);if(!grp.visible)g.style.display='none';redrawItem(g,item,grp.color);svg.appendChild(g);});});
 }
 
 function redrawItem(g,item,groupCol){
@@ -1712,8 +1673,8 @@ function redrawItem(g,item,groupCol){
     // label below (not rotated for readability)
     const labelY=cy+item.ph/2+14;
     svgLabel(g,cx,labelY,item.label,color);
-    // selection handles
-    if(selectedSymItemId===item.id){
+    // selection handles — für alle selektierten Items
+    if(selectedIds.has(item.id)){
       // bounding box corners (axis-aligned)
       const hw=item.pw/2+6,hh=item.ph/2+6;
       // dashed selection rect (rotated)
@@ -1789,26 +1750,89 @@ document.getElementById('group-list').addEventListener('click',e=>{
   const gh=e.target.closest('.group-header');if(gh){selectGroup(+gh.dataset.gid);}
 });
 
+// ── Sidebar Drag & Drop State ──
+let sidebarDragGid=null;   // Gruppe die gezogen wird
+let sidebarDragIid=null;   // Item das gezogen wird
+let sidebarDragSrcGid=null;// Quell-Gruppe des Items
+let _activeInsertEl=null;  // aktuell aktive Insert-Linie
+
+function _setInsert(el){
+  if(_activeInsertEl===el)return;
+  if(_activeInsertEl)_activeInsertEl.style.opacity='0';
+  _activeInsertEl=el;
+  if(el)el.style.opacity='1';
+}
+function _clearInsert(){_setInsert(null);}
+
+// Drop-Item an Position einfügen
+function moveItemToGroup(srcGrp,iid,dstGrp,toIdx){
+  const fromIdx=srcGrp.items.findIndex(i=>i.id===iid);
+  if(fromIdx<0)return;
+  const [movedItem]=srcGrp.items.splice(fromIdx,1);
+  if(srcGrp.id===dstGrp.id&&fromIdx<toIdx)toIdx--;
+  dstGrp.items.splice(toIdx,0,movedItem);
+  if(srcGrp.id!==dstGrp.id){
+    const el=document.getElementById('item-'+movedItem.id);
+    if(el){el.innerHTML='';redrawItem(el,movedItem,dstGrp.color);}
+  }
+  redrawAll();renderSidebar();
+}
+
 function renderSidebar(){
   const list=document.getElementById('group-list');
   const empty=document.getElementById('empty-state');
   list.innerHTML='';
+  _clearInsert();
   if(groups.length===0){empty.style.display='block';return;}
   empty.style.display='none';
 
-  groups.forEach(grp=>{
-    // count symbols by type for badge display
-    const symCounts={};
-    grp.items.filter(i=>i.type==='symbol').forEach(i=>{
-      symCounts[i.label]=(symCounts[i.label]||0)+1;
+  // ── Linie + unsichtbarer Drop-Slot ──
+  function mkLine(){
+    const l=document.createElement('div');
+    l.className='insert-line';
+    l.style.cssText='height:2px;background:var(--accent2);border-radius:2px;margin:2px 6px;pointer-events:none;opacity:0;transition:opacity .08s;';
+    return l;
+  }
+  function mkSlot(line,onDrop){
+    const s=document.createElement('div');
+    s.style.cssText='height:8px;margin:-3px 0;position:relative;z-index:2;';
+    s.addEventListener('dragenter',e=>{
+      if(sidebarDragIid==null&&sidebarDragGid==null)return;
+      e.preventDefault();_setInsert(line);
     });
+    s.addEventListener('dragover',e=>e.preventDefault());
+    s.addEventListener('dragleave',e=>{if(!s.contains(e.relatedTarget)&&_activeInsertEl===line)_clearInsert();});
+    s.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();_clearInsert();onDrop();});
+    return s;
+  }
+
+  groups.forEach((grp,grpIdx)=>{
+    const symCounts={};
+    grp.items.filter(i=>i.type==='symbol').forEach(i=>{symCounts[i.label]=(symCounts[i.label]||0)+1;});
 
     const block=document.createElement('div');
     block.className='group-block'+(grp.id===activeGroupId?' active-group':'');
     if(grp.id===activeGroupId)block.style.borderColor=grp.color;
+    block.dataset.gid=grp.id;
 
-    const hdr=document.createElement('div');hdr.className='group-header';hdr.dataset.gid=grp.id;
+    // ── Linie VOR dieser Gruppe ──
+    const grpLineBefore=mkLine();
+    const grpSlotBefore=mkSlot(grpLineBefore,()=>{
+      if(sidebarDragGid==null)return;
+      const fi=groups.findIndex(g=>g.id===sidebarDragGid);
+      let ti=grpIdx; if(fi<ti)ti--;
+      if(fi===ti){sidebarDragGid=null;return;}
+      const [m]=groups.splice(fi,1);groups.splice(ti,0,m);
+      sidebarDragGid=null;redrawAll();renderSidebar();
+    });
+    list.appendChild(grpLineBefore);
+    list.appendChild(grpSlotBefore);
+
+    // ── Header ──
+    const hdr=document.createElement('div');
+    hdr.className='group-header';hdr.dataset.gid=grp.id;hdr.draggable=true;
     hdr.innerHTML=`
+      <div style="cursor:grab;color:var(--muted);font-size:12px;padding:0 4px;user-select:none;flex-shrink:0">⠿</div>
       <div class="g-dot" style="background:${grp.color}"></div>
       <div class="g-name">${grp.name}</div>
       <div class="g-count">${grp.items.length}</div>
@@ -1817,11 +1841,20 @@ function renderSidebar(){
       <button class="g-tog${grp.collapsed?'':' open'}" data-gid="${grp.id}">›</button>
       <button class="g-del" data-gid="${grp.id}" title="Löschen">✕</button>
     `;
+    hdr.addEventListener('dragstart',e=>{
+      sidebarDragGid=grp.id;sidebarDragIid=null;sidebarDragSrcGid=null;
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain','grp');
+      setTimeout(()=>block.style.opacity='0.45',0);
+    });
+    hdr.addEventListener('dragend',()=>{block.style.opacity='';sidebarDragGid=null;_clearInsert();});
     block.appendChild(hdr);
 
-    const items=document.createElement('div');items.className='group-items'+(grp.collapsed?' collapsed':'');
+    // ── Items ──
+    const ic=document.createElement('div');
+    ic.className='group-items'+(grp.collapsed?' collapsed':'');
 
-    // Symbol summary at top of group (grouped counts)
+    // Symbol badges
     const symEntries=Object.entries(symCounts);
     if(symEntries.length>0){
       const sumDiv=document.createElement('div');
@@ -1832,32 +1865,104 @@ function renderSidebar(){
         badge.textContent=`${label} ×${count}`;
         sumDiv.appendChild(badge);
       });
-      items.appendChild(sumDiv);
+      ic.appendChild(sumDiv);
     }
 
-    if(grp.items.length===0){const e=document.createElement('div');e.className='g-empty';e.textContent='Keine Objekte.';items.appendChild(e);}
-    grp.items.forEach(item=>{
-      const icons={measure:'📏',polyline:'〽',angle:'∠',rect:'▭',circle:'●',triangle:'▲',text:'T',symbol:'◆'};
-      const canCopy=DRAGGABLE_TYPES.includes(item.type);
-      const canEdit=['rect','circle','triangle','text','symbol'].includes(item.type);
-      const sidebarColor=sidebarTextColor(grp.color);
-      const div=document.createElement('div');div.className='m-item';
-      div.innerHTML=`
-        <div class="m-dot" style="background:${item.forcedColor||grp.color};border:1px solid rgba(255,255,255,.2)"></div>
-        <div class="m-info">
-          <div class="m-val" style="color:${sidebarColor}">${icons[item.type]||'•'} ${item.label}</div>
-          <div class="m-sub">#${item.id} · ${item.type}${item.type==='symbol'&&item.rot?` · ${item.rot}°`:''}</div>
-        </div>
-        ${canEdit?`<button class="m-edit" data-gid="${grp.id}" data-iid="${item.id}" title="Bearbeiten">✏️</button>`:''}
-        ${canCopy?`<button class="m-copy" data-gid="${grp.id}" data-iid="${item.id}" title="Kopieren">⧉</button>`:''}
-        <button class="m-del" data-gid="${grp.id}" data-iid="${item.id}" title="Löschen">✕</button>
-      `;
-      items.appendChild(div);
-    });
-    block.appendChild(items);list.appendChild(block);
+    if(grp.items.length===0){
+      const emptyLine=mkLine();
+      const emptyZone=document.createElement('div');
+      emptyZone.className='g-empty';
+      emptyZone.style.cssText='transition:color .12s;border-radius:4px;padding:5px 6px;';
+      emptyZone.textContent='Keine Objekte — hier ablegen';
+      emptyZone.addEventListener('dragenter',e=>{
+        if(sidebarDragIid==null)return;
+        e.preventDefault();_setInsert(emptyLine);emptyZone.style.color='var(--accent2)';
+      });
+      emptyZone.addEventListener('dragover',e=>{if(sidebarDragIid!=null)e.preventDefault();});
+      emptyZone.addEventListener('dragleave',e=>{
+        if(!emptyZone.contains(e.relatedTarget)){_clearInsert();emptyZone.style.color='';}
+      });
+      emptyZone.addEventListener('drop',e=>{
+        e.preventDefault();e.stopPropagation();_clearInsert();emptyZone.style.color='';
+        if(sidebarDragIid==null)return;
+        const src=groups.find(g=>g.id===sidebarDragSrcGid);
+        if(src)moveItemToGroup(src,sidebarDragIid,grp,0);
+        sidebarDragIid=null;sidebarDragSrcGid=null;
+      });
+      ic.appendChild(emptyLine);
+      ic.appendChild(emptyZone);
+    } else {
+      grp.items.forEach((item,itemIdx)=>{
+        // Slot VOR diesem Item
+        const lb=mkLine();
+        const sb=mkSlot(lb,()=>{
+          if(sidebarDragIid==null)return;
+          const src=groups.find(g=>g.id===sidebarDragSrcGid);
+          if(src)moveItemToGroup(src,sidebarDragIid,grp,itemIdx);
+          sidebarDragIid=null;sidebarDragSrcGid=null;
+        });
+        ic.appendChild(lb);ic.appendChild(sb);
+
+        const icons={measure:'📏',polyline:'〽',angle:'∠',rect:'▭',circle:'●',triangle:'▲',text:'T',symbol:'◆'};
+        const canCopy=DRAGGABLE_TYPES.includes(item.type);
+        const canEdit=['rect','circle','triangle','text','symbol'].includes(item.type);
+        const sidebarColor=sidebarTextColor(grp.color);
+
+        const div=document.createElement('div');div.className='m-item';div.draggable=true;
+        div.innerHTML=`
+          <div style="cursor:grab;color:var(--muted);font-size:10px;padding:0 3px;user-select:none;flex-shrink:0">⠿</div>
+          <div class="m-dot" style="background:${item.forcedColor||grp.color};border:1px solid rgba(255,255,255,.2)"></div>
+          <div class="m-info">
+            <div class="m-val" style="color:${sidebarColor}">${icons[item.type]||'•'} ${item.label}</div>
+            <div class="m-sub">#${item.id} · ${item.type}${item.type==='symbol'&&item.rot?` · ${item.rot}°`:''}</div>
+          </div>
+          ${canEdit?`<button class="m-edit" data-gid="${grp.id}" data-iid="${item.id}" title="Bearbeiten">✏️</button>`:''}
+          ${canCopy?`<button class="m-copy" data-gid="${grp.id}" data-iid="${item.id}" title="Kopieren">⧉</button>`:''}
+          <button class="m-del" data-gid="${grp.id}" data-iid="${item.id}" title="Löschen">✕</button>
+        `;
+        div.addEventListener('dragstart',e=>{
+          sidebarDragIid=item.id;sidebarDragSrcGid=grp.id;sidebarDragGid=null;
+          e.dataTransfer.effectAllowed='move';
+          e.dataTransfer.setData('text/plain','item');
+          setTimeout(()=>div.style.opacity='0.45',0);
+          e.stopPropagation();
+        });
+        div.addEventListener('dragend',()=>{div.style.opacity='';sidebarDragIid=null;sidebarDragSrcGid=null;_clearInsert();});
+        ic.appendChild(div);
+
+        // Slot NACH letztem Item
+        if(itemIdx===grp.items.length-1){
+          const la=mkLine();
+          const sa=mkSlot(la,()=>{
+            if(sidebarDragIid==null)return;
+            const src=groups.find(g=>g.id===sidebarDragSrcGid);
+            if(src)moveItemToGroup(src,sidebarDragIid,grp,grp.items.length);
+            sidebarDragIid=null;sidebarDragSrcGid=null;
+          });
+          ic.appendChild(la);ic.appendChild(sa);
+        }
+      });
+    }
+
+    block.appendChild(ic);
+    list.appendChild(block);
   });
+
+  // ── Linie NACH letzter Gruppe ──
+  const lastLine=mkLine();
+  const lastSlot=mkSlot(lastLine,()=>{
+    if(sidebarDragGid==null)return;
+    const fi=groups.findIndex(g=>g.id===sidebarDragGid);
+    if(fi<0||fi===groups.length-1){sidebarDragGid=null;return;}
+    const [m]=groups.splice(fi,1);groups.push(m);
+    sidebarDragGid=null;redrawAll();renderSidebar();
+  });
+  list.appendChild(lastLine);
+  list.appendChild(lastSlot);
+
   autosave();
 }
+
 
 function cancelDrawing(){
   drawing=false;startPt=null;
@@ -1873,9 +1978,12 @@ function cancelPolyline(){
 }
 function setMode(m){
   cancelDrawing();mode=m;
-  const map={measure:'measure-btn',polyline:'poly-btn',angle:'angle-btn',rect:'rect-btn',circle:'circle-btn',triangle:'triangle-btn',text:'text-btn'};
-  Object.values(map).forEach(id=>{const el=document.getElementById(id);if(el){el.classList.remove('active');}});
+  const map={select:'select-btn',measure:'measure-btn',polyline:'poly-btn',angle:'angle-btn',text:'text-btn'};
+  Object.values(map).forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
   if(map[m]){const el=document.getElementById(map[m]);if(el)el.classList.add('active');}
+  // cursor
+  if(m==='select')container.style.cursor='default';
+  else if(pdfCanvas.width)container.style.cursor='crosshair';
 }
 
 // ══════════════════════════════════════════
@@ -1883,14 +1991,14 @@ function setMode(m){
 // ══════════════════════════════════════════
 function clearAll(){
   if(!confirm('Alles zurücksetzen?\nAlle Objekte, Gruppen und Kalibrierung gehen verloren.'))return;
-  cancelDrawing();groups=[];activeGroupId=null;idCounter=0;calibrated=false;pxPerUnit=null;selectedSymItemId=null;
+  cancelDrawing();groups=[];activeGroupId=null;idCounter=0;calibrated=false;pxPerUnit=null;selectedSymItemId=null;selectedIds.clear();
   svg.innerHTML='';pdfDoc=null;imgDataUrl=null;pdfCanvas.width=0;pdfCanvas.height=0;
   document.getElementById('drop-zone').classList.remove('hidden');
   document.getElementById('cal-dot').style.background='var(--muted)';
   document.getElementById('cal-status').textContent='Nicht kalibriert';
   const btn=document.getElementById('cal-btn');btn.textContent='📏 Kalibrieren';btn.classList.remove('waiting');btn.classList.add('a2');
-  mode='measure';setMode('measure');lockTools(true);showCalLock(false);
-  const grp={id:++idCounter,name:'Gruppe 1',color:'#e8ff47',visible:true,collapsed:false,items:[]};
+  mode='select';setMode('select');lockTools(true);showCalLock(false);
+  const grp={id:++idCounter,name:'Gruppe 1',color:COLORS[0],visible:true,collapsed:false,items:[]};
   groups.push(grp);activeGroupId=grp.id;
   renderSidebar();clearAutosave();
 }
@@ -1989,7 +2097,7 @@ function exportListPDF(){
     });y+=2;
   });
   const pageCount=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN v0.2.0 · Seite ${i}/${pageCount}`,margin,295);}
+  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN v0.2.1 · Seite ${i}/${pageCount}`,margin,295);}
   doc.save('planbazn-liste.pdf');
 }
 
@@ -2066,7 +2174,7 @@ function confirmNewCanvas(){
 restoreAutosave().then(restored=>{
   if(!restored||!groups.length){
     if(!groups.length){
-      const grp={id:++idCounter,name:'Gruppe 1',color:'#e8ff47',visible:true,collapsed:false,items:[]};
+      const grp={id:++idCounter,name:'Gruppe 1',color:COLORS[0],visible:true,collapsed:false,items:[]};
       groups.push(grp);activeGroupId=grp.id;
     }
     renderSidebar();
