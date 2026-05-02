@@ -280,7 +280,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <div id="statusbar">
         <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
         <span id="cal-status">Nicht kalibriert</span>
-        <span style="margin-left:8px;opacity:.4;font-size:9px;">B035</span>
+        <span style="margin-left:8px;opacity:.4;font-size:9px;">B036</span>
         <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
       </div>
     </div>
@@ -1458,6 +1458,7 @@ function hideCtxMenu(){const m=getCtxMenu();if(m)m.style.display='none';ctxTarge
 document.getElementById('ctx-edit').onclick=(e)=>{
   e.stopPropagation();
   if(!ctxTargetItem)return;
+  if(ctxTargetGrp&&ctxTargetGrp.locked){hideCtxMenu();alert('Gruppe ist gesperrt.');return;}
   const item=ctxTargetItem;hideCtxMenu();
   if(item.type==='text')openTextEditModal(item);
   else openSymEditModal(item);
@@ -1465,6 +1466,7 @@ document.getElementById('ctx-edit').onclick=(e)=>{
 document.getElementById('ctx-copy').onclick=(e)=>{
   e.stopPropagation();
   if(!ctxTargetItem||!ctxTargetGrp)return;
+  if(ctxTargetGrp.locked){hideCtxMenu();alert('Gruppe ist gesperrt.');return;}
   const gid=ctxTargetGrp.id,iid=ctxTargetItem.id;hideCtxMenu();
   copyItem(gid,iid);
 };
@@ -1769,6 +1771,7 @@ function deleteItem(gid,iid){
 }
 function copyItem(gid,iid){
   const grp=groups.find(g=>g.id===gid);if(!grp)return;
+  if(grp.locked){alert('Gruppe ist gesperrt.');return;}
   const orig=grp.items.find(i=>i.id===iid);if(!orig)return;
   const copy=JSON.parse(JSON.stringify(orig));
   copy.id=++idCounter;
@@ -2244,8 +2247,9 @@ function renderSidebar(){
     grp.items.filter(i=>i.type==='symbol').forEach(i=>{symCounts[i.label]=(symCounts[i.label]||0)+1;});
 
     const block=document.createElement('div');
-    block.className='group-block'+(grp.id===activeGroupId?' active-group':'');
+    block.className='group-block'+(grp.id===activeGroupId?' active-group':'')+(grp.locked?' locked-group':'');
     if(grp.id===activeGroupId)block.style.borderColor=grp.color;
+    else if(grp.locked)block.style.borderColor='var(--accent3)';
     block.dataset.gid=grp.id;
 
     // ── Linie VOR dieser Gruppe ──
@@ -2573,7 +2577,7 @@ function exportListPDF(){
     });y+=2;
   });
   const pageCount=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN B035 \u00B7 Seite ${i}/${pageCount}`,margin,295);}
+  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN B036 \u00B7 Seite ${i}/${pageCount}`,margin,295);}
   doc.save('planbazn-liste.pdf');
 }
 
