@@ -196,6 +196,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <div class="tb-row">
         <button class="btn measure-tool" id="measure-btn" onclick="setMode('measure')">📏 Abstand</button>
         <button class="btn measure-tool" id="poly-btn" onclick="setMode('polyline')">〽 Pfad</button>
+        <button class="btn measure-tool" id="area-btn" onclick="setMode('area')">⬡ Fläche</button>
         <button class="btn measure-tool" id="angle-btn" onclick="setMode('angle')">∠ Winkel</button>
       </div>
     </div>
@@ -235,6 +236,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 </div>
 
 <!-- MAIN -->
+<!-- Hidden draw tool state (no toolbar buttons needed) -->
+<input type="number" id="stroke-width" value="2" min="0.5" max="20" step="0.5" style="display:none;">
+<button id="line-btn" style="display:none;" onclick="setMode('line')"></button>
+<button id="drawpoly-btn" style="display:none;" onclick="setMode('drawpoly')"></button>
+
 <div id="main">
   <!-- LIBRARY: absolute, full height, no flex issues -->
   <div id="lib-panel">
@@ -274,7 +280,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <div id="statusbar">
         <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
         <span id="cal-status">Nicht kalibriert</span>
-        <span style="margin-left:8px;opacity:.4;font-size:9px;">v0.2.1</span>
+        <span style="margin-left:8px;opacity:.4;font-size:9px;">B035</span>
         <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
       </div>
     </div>
@@ -282,8 +288,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 </div>
 
 <div id="drag-ghost"></div>
-<!-- DRAG GHOST -->
-<div id="drag-ghost"></div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu" style="display:none;position:fixed;z-index:2000;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.5);">
+  <div id="ctx-object-list" style="border-bottom:1px solid var(--border);margin-bottom:3px;padding-bottom:3px;display:none;max-height:120px;overflow-y:auto;"></div>
+  <div id="ctx-edit" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;">Bearbeiten</div>
+  <div id="ctx-copy" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;">Kopieren</div>
+  <div id="ctx-del" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;color:var(--accent3);">Loeschen</div>
+</div>
 
 <!-- ══════════ MODALS ══════════ -->
 
@@ -370,6 +382,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <label>Breite (m)</label><input type="number" id="sem-w" step="0.1" min="0.1">
       <label style="margin-top:6px">Höhe (m)</label><input type="number" id="sem-h" step="0.1" min="0.1">
     </div>
+    <div id="sem-stroke-wrap" style="display:none">
+      <label>Strichstärke</label>
+      <div class="rot-slider-wrap">
+        <input type="range" id="sem-sw" min="0.5" max="20" step="0.5" value="2" oninput="document.getElementById('sem-sw-val').textContent=this.value+'px'">
+        <span class="rot-val" id="sem-sw-val">2px</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+      <label style="font-size:10px;font-weight:700;color:var(--muted);">Label anzeigen</label>
+      <input type="checkbox" id="sem-show-label" checked style="cursor:pointer;">
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeSymEditModal()">Abbrechen</button>
       <button class="btn active" onclick="confirmSymEdit()">Speichern</button>
@@ -431,6 +454,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 <script>
 const SYMBOL_LIBRARY = [
 
+  // ══════════ ZEICHNEN ══════════
+  {
+    id:'tool-line', name:'Linie', cat:'zeichnen',
+    w:1.00, h:0.10, scalable:false, drawTool:'line',
+    draw:(c,pw,ph)=>`
+      <line x1="4" y1="${ph/2}" x2="${pw-4}" y2="${ph/2}" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/>
+    `
+  },
+  {
+    id:'tool-drawpoly', name:'Polylinie', cat:'zeichnen',
+    w:1.00, h:0.10, scalable:false, drawTool:'drawpoly',
+    draw:(c,pw,ph)=>`
+      <polyline points="4,${ph*0.8} ${pw*0.3},${ph*0.2} ${pw*0.6},${ph*0.7} ${pw-4},${ph*0.15}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    `
+  },
   // ══════════ GENERIC ══════════
   {
     id:'generic-rect', name:'Rechteck', cat:'generic',
@@ -511,32 +549,106 @@ const SYMBOL_LIBRARY = [
     // Skizze: abgerundetes Rechteck, Trapez unten, zwei Punkte oben, dicker Balken mittig
     id:'flatscreen-55', name:'Flatscreen 55"', cat:'multimedia',
     w:1.00, h:0.60, scalable:false,
-    draw:(c,pw,ph)=>`
-      <rect x="1" y="1" width="${pw-2}" height="${ph*0.65}" rx="${ph*0.12}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
-      <polygon points="${pw*0.08},${ph*0.65} ${pw*0.92},${ph*0.65} ${pw*0.78},${ph*0.98} ${pw*0.22},${ph*0.98}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw*0.35}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
-      <circle cx="${pw*0.65}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
-      <rect x="0" y="${ph*0.46}" width="${pw}" height="${ph*0.13}" rx="0" fill="${c}" stroke="none"/>
-    `
+    draw:(c,pw,ph)=>{
+      const rx1=pw*0.14,rx2=pw*0.28,bh=ph*(0.10/0.60),balkenY=ph*(0.26/0.60);
+      const barW=pw*1.15,barX=(pw-barW)/2;
+      return `
+        <path d="M${rx1},0 H${pw-rx1} Q${pw},0 ${pw},${rx1} V${balkenY} Q${pw},${ph} ${pw-rx2},${ph} H${rx2} Q0,${ph} 0,${balkenY} V${rx1} Q0,0 ${rx1},0 Z" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
+        <circle cx="${pw*0.35}" cy="${ph*0.18}" r="${pw*0.04}" fill="${c}" stroke="none"/>
+        <circle cx="${pw*0.65}" cy="${ph*0.18}" r="${pw*0.04}" fill="${c}" stroke="none"/>
+        <rect x="${barX}" y="${balkenY}" width="${barW}" height="${bh}" rx="0" fill="${c}" stroke="none"/>
+      `;
+    }
   },
   {
     // gleiche Form wie 55" nur etwas schmäler (43" = 0.95m Balken)
     id:'flatscreen-43', name:'Flatscreen 43"', cat:'multimedia',
     w:1.00, h:0.60, scalable:false,
+    draw:(c,pw,ph)=>{
+      const rx1=pw*0.14,rx2=pw*0.28,bh=ph*(0.10/0.60),balkenY=ph*(0.26/0.60);
+      return `
+        <path d="M${rx1},0 H${pw-rx1} Q${pw},0 ${pw},${rx1} V${balkenY} Q${pw},${ph} ${pw-rx2},${ph} H${rx2} Q0,${ph} 0,${balkenY} V${rx1} Q0,0 ${rx1},0 Z" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
+        <circle cx="${pw*0.35}" cy="${ph*0.18}" r="${pw*0.04}" fill="${c}" stroke="none"/>
+        <circle cx="${pw*0.65}" cy="${ph*0.18}" r="${pw*0.04}" fill="${c}" stroke="none"/>
+        <rect x="0" y="${balkenY}" width="${pw}" height="${bh}" rx="0" fill="${c}" stroke="none"/>
+      `;
+    }
+  },
+  // ======== LICHT ========
+  {
+    id:'mh-spot', name:'MH Spot', cat:'licht',
+    w:0.40, h:0.40, scalable:false,
     draw:(c,pw,ph)=>`
-      <rect x="1" y="1" width="${pw-2}" height="${ph*0.65}" rx="${ph*0.12}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
-      <polygon points="${pw*0.08},${ph*0.65} ${pw*0.92},${ph*0.65} ${pw*0.78},${ph*0.98} ${pw*0.22},${ph*0.98}" fill="${c}18" stroke="${c}" stroke-width="1.5"/>
-      <circle cx="${pw*0.35}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
-      <circle cx="${pw*0.65}" cy="${ph*0.26}" r="${ph*0.11}" fill="${c}" stroke="none"/>
-      <rect x="${pw*0.025}" y="${ph*0.46}" width="${pw*0.95}" height="${ph*0.13}" rx="0" fill="${c}" stroke="none"/>
+      <rect x="1" y="1" width="${pw-2}" height="${ph-2}" rx="${Math.min(pw,ph)*0.28}" fill="${c}18" stroke="${c}" stroke-width="2"/>
+      <text x="${pw/2}" y="${ph*0.62}" text-anchor="middle" dominant-baseline="middle" font-family="JetBrains Mono,monospace" font-size="${pw*0.45}" font-weight="700" fill="${c}">S</text>
     `
   },
+  {
+    id:'mh-wash', name:'MH Wash', cat:'licht',
+    w:0.40, h:0.40, scalable:false,
+    draw:(c,pw,ph)=>`
+      <rect x="1" y="1" width="${pw-2}" height="${ph-2}" rx="${Math.min(pw,ph)*0.28}" fill="${c}18" stroke="${c}" stroke-width="2"/>
+      <text x="${pw/2}" y="${ph*0.62}" text-anchor="middle" dominant-baseline="middle" font-family="JetBrains Mono,monospace" font-size="${pw*0.45}" font-weight="700" fill="${c}">W</text>
+    `
+  },
+  {
+    id:'mh-beam', name:'MH Beam', cat:'licht',
+    w:0.40, h:0.40, scalable:false,
+    draw:(c,pw,ph)=>`
+      <rect x="1" y="1" width="${pw-2}" height="${ph-2}" rx="${Math.min(pw,ph)*0.28}" fill="${c}18" stroke="${c}" stroke-width="2"/>
+      <text x="${pw/2}" y="${ph*0.62}" text-anchor="middle" dominant-baseline="middle" font-family="JetBrains Mono,monospace" font-size="${pw*0.45}" font-weight="700" fill="${c}">B</text>
+    `
+  },
+  {
+    id:'led-par', name:'LED Par', cat:'licht',
+    w:0.40, h:0.40, scalable:false,
+    draw:(c,pw,ph)=>`
+      <rect x="1" y="1" width="${pw-2}" height="${ph-2}" rx="${Math.min(pw,ph)*0.15}" fill="${c}18" stroke="${c}" stroke-width="2"/>
+      <text x="${pw/2}" y="${ph*0.62}" text-anchor="middle" dominant-baseline="middle" font-family="JetBrains Mono,monospace" font-size="${pw*0.28}" font-weight="700" fill="${c}">LED</text>
+    `
+  },
+  {
+    id:'dimmer', name:'Dimmer', cat:'licht',
+    w:0.40, h:0.40, scalable:false,
+    draw:(c,pw,ph)=>`
+      <rect x="1" y="1" width="${pw-2}" height="${ph-2}" rx="${Math.min(pw,ph)*0.09}" fill="${c}18" stroke="${c}" stroke-width="2"/>
+      <text x="${pw/2}" y="${ph*0.62}" text-anchor="middle" dominant-baseline="middle" font-family="JetBrains Mono,monospace" font-size="${pw*0.45}" font-weight="700" fill="${c}">D</text>
+    `
+  },
+  {
+    id:'fog-hazer', name:'Fog/Hazer', cat:'licht',
+    w:0.40, h:0.40, scalable:false,
+    draw:(c,pw,ph)=>`
+      <rect x="1" y="1" width="${pw-2}" height="${ph-2}" rx="${Math.min(pw,ph)*0.05}" fill="${c}18" stroke="${c}" stroke-width="2"/>
+      <text x="${pw/2}" y="${ph*0.62}" text-anchor="middle" dominant-baseline="middle" font-family="JetBrains Mono,monospace" font-size="${pw*0.26}" font-weight="700" fill="${c}">FOG</text>
+    `
+  },
+
+  // ======== MOEBEL ========
+  {
+    id:'biertisch', name:'Biertisch Garnitur', cat:'moebel',
+    w:2.20, h:1.30, scalable:false,
+    draw:(c,pw,ph)=>{
+      // Hoehen: Bank=0.25m, Gap=0.15m, Tisch=0.50m, Gap=0.15m, Bank=0.25m => total 1.30m
+      const bh=ph*(0.25/1.30), gap=ph*(0.15/1.30), th=ph*(0.50/1.30);
+      const y1=0, y2=bh+gap, y3=bh+gap+th+gap;
+      return `
+        <rect x="0" y="${y1}" width="${pw}" height="${bh}" rx="3" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
+        <rect x="0" y="${y2}" width="${pw}" height="${th}" rx="3" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
+        <rect x="0" y="${y3}" width="${pw}" height="${bh}" rx="3" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
+      `;
+    }
+  },
+
 ];
 
 const LIB_CATS = {
-  generic:    {label:'Generic',    icon:'⬜'},
-  rigging:    {label:'Rigging',    icon:'🏗'},
-  multimedia: {label:'Multimedia', icon:'📺'},
+  zeichnen:   {label:'Zeichnen',   icon:'✏️', collapsed:false},
+  generic:    {label:'Generic',    icon:'⬜', collapsed:false},
+  rigging:    {label:'Rigging',    icon:'🏗', collapsed:false},
+  licht:      {label:'Licht',      icon:'💡', collapsed:false},
+  moebel:     {label:'Möbel', icon:'🪑', collapsed:false},
+  multimedia: {label:'Multimedia', icon:'📺', collapsed:false},
 };
 </script>
 <script>
@@ -567,6 +679,9 @@ let groups=[],activeGroupId=null,idCounter=0;
 let mode='select';
 let drawing=false,startPt=null,activeLine=null;
 let polyPts=[],polySegs=[],polyRubber=null;
+let linePts=[],lineRubber=null;
+function getStrokeWidth(){return parseFloat(document.getElementById('stroke-width')&&document.getElementById('stroke-width').value||2)||2;}
+let areaPts=[],areaPrev=[],areaRubber=null,areaSnapIndicator=null;
 let anglePts=[],angleLines=[],angleRubber=null;
 let spaceDown=false,panning=false,panStart=null;
 let dragging=null,dragOffX=0,dragOffY=0,didDrag=false,dragStartX=0,dragStartY=0;
@@ -592,8 +707,9 @@ let libDragSymDef=null;
 let libDragGhost=document.getElementById('drag-ghost');
 let libPanelOpen=false;
 
-const COLORS=['#222222','#e8ff47','#ff6b47','#47ffb0','#ff47d0','#47c8ff','#ffb347','#ff4785','#b347ff','#47ffd0'];
-const DRAGGABLE_TYPES=['rect','circle','triangle','text','measure','polyline','angle','symbol'];
+const COLORS=['#222222','#e8ff47','#ff6b47','#47ffb0','#ff47d0','#47c8ff','#ffb347','#ff4785','#b347ff','#47ffd0','#aaaaaa'];
+const DASHED_COLOR='#aaaaaa';
+const DRAGGABLE_TYPES=['rect','circle','triangle','text','measure','polyline','angle','area','symbol','line','drawpoly'];
 
 const wrap=document.getElementById('canvas-wrap');
 const container=document.getElementById('canvas-container');
@@ -620,23 +736,29 @@ function renderLibrary(){
   body.innerHTML='';
   const cats=Object.keys(LIB_CATS);
   let totalShown=0;
+  let totalCats=0;
   cats.forEach(cat=>{
     const items=SYMBOL_LIBRARY.filter(s=>s.cat===cat&&(!q||(s.name.toLowerCase().includes(q)||LIB_CATS[s.cat].label.toLowerCase().includes(q))));
     if(!items.length)return;
-    // category title
+    totalCats++;
+    // category title — collapsible
+    const catDef=LIB_CATS[cat];
     const titleEl=document.createElement('div');
     titleEl.className='lib-cat-title';
-    titleEl.innerHTML=`<span class="lib-cat-icon">${LIB_CATS[cat].icon}</span>${LIB_CATS[cat].label}`;
+    titleEl.style.cssText='cursor:pointer;user-select:none;justify-content:space-between;';
+    const tog=catDef.collapsed?'›':'⌄';
+    titleEl.innerHTML='<span class="lib-cat-icon">'+catDef.icon+'</span>'+catDef.label+'<span style="margin-left:auto;font-size:10px;color:var(--muted)">'+tog+'</span>';
+    titleEl.addEventListener('click',()=>{catDef.collapsed=!catDef.collapsed;renderLibrary();});
     body.appendChild(titleEl);
+    if(catDef.collapsed)return;
     const grid=document.createElement('div');
     grid.className='lib-grid';
     items.forEach(sym=>{
       totalShown++;
       const card=document.createElement('div');
       card.className='lib-item';
-      card.title=`${sym.name} (${sym.w}×${sym.h}m)`;
+      card.title=`${sym.name} (${sym.w}x${sym.h}m)`;
       card.draggable=true;
-      // Build preview SVG safely
       const previewW=38,previewH=38;
       const previewColor=sym.forcedColor||'#47c8ff';
       const svgNS='http://www.w3.org/2000/svg';
@@ -645,7 +767,6 @@ function renderLibrary(){
       svgEl.setAttribute('width',previewW);
       svgEl.setAttribute('height',previewH);
       svgEl.setAttribute('xmlns',svgNS);
-      // use innerHTML only for the draw output (safe — no user input)
       const innerG=document.createElementNS(svgNS,'g');
       innerG.innerHTML=sym.draw(previewColor,previewW,previewH);
       svgEl.appendChild(innerG);
@@ -654,17 +775,27 @@ function renderLibrary(){
       nameDiv.textContent=sym.name;
       const sizeDiv=document.createElement('div');
       sizeDiv.className='lib-item-size';
-      sizeDiv.textContent=`${sym.w}×${sym.h}m`;
+      sizeDiv.textContent=sym.drawTool?'Klicken zum Zeichnen':`${sym.w}x${sym.h}m`;
       card.appendChild(svgEl);
       card.appendChild(nameDiv);
       card.appendChild(sizeDiv);
-      card.addEventListener('dragstart',e=>startLibDrag(e,sym));
-      card.addEventListener('mousedown',e=>startLibMouseDrag(e,sym));
+      if(sym.drawTool){
+        card.style.cursor='pointer';
+        card.addEventListener('click',()=>{
+          if(!calibrated){alert('Bitte zuerst kalibrieren.');return;}
+          if(!activeGroupId){alert('Bitte zuerst eine Gruppe auswählen.');return;}
+          setMode(sym.drawTool);
+        });
+      } else {
+        card.addEventListener('dragstart',e=>startLibDrag(e,sym));
+        card.addEventListener('mousedown',e=>startLibMouseDrag(e,sym));
+      }
       grid.appendChild(card);
     });
     body.appendChild(grid);
   });
-  if(totalShown===0){
+  // Nur "nicht gefunden" zeigen wenn wirklich keine Kategorien da sind
+  if(totalCats===0){
     body.innerHTML='<div style="padding:16px;text-align:center;color:var(--muted);font-size:10px;">Keine Symbole gefunden.</div>';
   }
 }
@@ -740,6 +871,7 @@ function dropSymbol(sym,pos){
   // Traverse: Label = Länge
   const label=sym.id==='traverse'?fmtVal(sym.w,unit):sym.name;
   addSymbol(sym,x,y,pw,ph,0,label);
+  setMode('select');
 }
 
 function addSymbol(sym,x,y,pw,ph,rot,label){
@@ -858,6 +990,7 @@ function updateCursor(){
 
 function findDraggable(mx,my){
   for(const grp of groups){
+    if(grp.locked)continue;
     for(const item of [...grp.items].reverse()){
       if(!DRAGGABLE_TYPES.includes(item.type))continue;
       if(isOverItem(mx,my,item))return{item,grp};
@@ -867,7 +1000,7 @@ function findDraggable(mx,my){
 }
 
 function isOverItem(mx,my,item){
-  const pad=8;
+  const pad=3;
   if(item.type==='symbol'){
     // bounding box with rotation — approximate with axis-aligned box of the diagonal
     const cx=item.x+item.pw/2,cy=item.y+item.ph/2;
@@ -883,10 +1016,24 @@ function isOverItem(mx,my,item){
     const w=item.txt.length*item.sz*0.6+pad*2;
     return mx>=item.pos.x-pad&&mx<=item.pos.x+w&&my>=item.pos.y-item.sz-pad&&my<=item.pos.y+pad;
   }
+  if(item.type==='line')return distToSegment(mx,my,item.p1.x,item.p1.y,item.p2.x,item.p2.y)<10;
+  if(item.type==='drawpoly'){
+    if(!item.pts)return false;
+    for(let i=1;i<item.pts.length;i++){if(distToSegment(mx,my,item.pts[i-1].x,item.pts[i-1].y,item.pts[i].x,item.pts[i].y)<10)return true;}
+    return false;
+  }
   if(item.type==='measure')return distToSegment(mx,my,item.x1,item.y1,item.x2,item.y2)<10;
   if(item.type==='polyline'){
     for(let i=1;i<item.pts.length;i++){if(distToSegment(mx,my,item.pts[i-1].x,item.pts[i-1].y,item.pts[i].x,item.pts[i].y)<10)return true;}
     return false;
+  }
+  if(item.type==='area'){
+    if(!item.pts||item.pts.length<3)return false;
+    // Bounding box check
+    const xs=item.pts.map(p=>p.x),ys=item.pts.map(p=>p.y);
+    const x1=Math.min(...xs)-pad,y1=Math.min(...ys)-pad;
+    const x2=Math.max(...xs)+pad,y2=Math.max(...ys)+pad;
+    return mx>=x1&&mx<=x2&&my>=y1&&my<=y2;
   }
   if(item.type==='angle'){
     if(!item.pts||item.pts.length<3)return false;
@@ -910,6 +1057,9 @@ function itemCenter(item){
   if(item.type==='text')return{cx:item.pos.x,cy:item.pos.y};
   if(item.type==='measure')return{cx:(item.x1+item.x2)/2,cy:(item.y1+item.y2)/2};
   if(item.type==='polyline'){const sum=item.pts.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0});return{cx:sum.x/item.pts.length,cy:sum.y/item.pts.length};}
+  if(item.type==='line')return{cx:(item.p1.x+item.p2.x)/2,cy:(item.p1.y+item.p2.y)/2};
+  if(item.type==='drawpoly'&&item.pts){const s=item.pts.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0});return{cx:s.x/item.pts.length,cy:s.y/item.pts.length};}
+  if(item.type==='area'&&item.pts){const cx=item.pts.reduce((s,p)=>s+p.x,0)/item.pts.length;const cy=item.pts.reduce((s,p)=>s+p.y,0)/item.pts.length;return{cx,cy};}
   if(item.type==='angle'&&item.pts)return{cx:item.pts[1].x,cy:item.pts[1].y};
   return{cx:(item.p1.x+item.p2.x)/2,cy:(item.p1.y+item.p2.y)/2};
 }
@@ -919,6 +1069,9 @@ function moveItemCenter(item,newCx,newCy){
   else if(item.type==='text'){item.pos={x:newCx,y:newCy};}
   else if(item.type==='measure'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.x1+=dx;item.y1+=dy;item.x2+=dx;item.y2+=dy;}
   else if(item.type==='polyline'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));}
+  else if(item.type==='line'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.p1={x:item.p1.x+dx,y:item.p1.y+dy};item.p2={x:item.p2.x+dx,y:item.p2.y+dy};}
+  else if(item.type==='drawpoly'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));}
+  else if(item.type==='area'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));}
   else if(item.type==='angle'){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));}
   else if(item.p1){const c=itemCenter(item);const dx=newCx-c.cx,dy=newCy-c.cy;item.p1={x:item.p1.x+dx,y:item.p1.y+dy};item.p2={x:item.p2.x+dx,y:item.p2.y+dy};}
 }
@@ -939,7 +1092,7 @@ wrap.addEventListener('mousemove',e=>{
     if(diff<8)newRot=nearest;
     rotItem.rot=Math.round(newRot);
     const el=document.getElementById('item-'+rotItem.id);
-    for(const grp of groups){const found=grp.items.find(i=>i.id===rotItem.id);if(found){if(el){el.innerHTML='';redrawItem(el,rotItem,grp.color);}break;}}
+    for(const grp of groups){const found=grp.items.find(i=>i.id===rotItem.id);if(found){if(el){el.innerHTML='';redrawItem(el,rotItem,grp.color,!!grp.hideLabels);}break;}}
     return;
   }
 
@@ -975,29 +1128,35 @@ wrap.addEventListener('mousemove',e=>{
     }
     // Multi-drag: alle selektierten Items mitbewegen
     if(selectedIds.size>1&&dragging._multiOffsets){
-      Object.values(dragging._multiOffsets).forEach(({dx,dy,item:it})=>{
-        const newCx=pos.x+dx,newCy=pos.y+dy;
-        moveItemCenter(it,newCx,newCy);
+      if(!dragging._lastPos){dragging._lastPos={x:pos.x,y:pos.y};}
+      const mdx=pos.x-dragging._lastPos.x,mdy=pos.y-dragging._lastPos.y;
+      dragging._lastPos={x:pos.x,y:pos.y};
+      Object.values(dragging._multiOffsets).forEach(({item:it})=>{
+        if(it.type==='symbol'){it.x+=mdx;it.y+=mdy;}
+        else if(it.type==='text'){it.pos={x:it.pos.x+mdx,y:it.pos.y+mdy};}
+        else if(it.type==='measure'){it.x1+=mdx;it.y1+=mdy;it.x2+=mdx;it.y2+=mdy;}
+        else if(it.type==='line'){it.p1={x:it.p1.x+mdx,y:it.p1.y+mdy};it.p2={x:it.p2.x+mdx,y:it.p2.y+mdy};}
+        else if(it.pts){it.pts=it.pts.map(p=>({x:p.x+mdx,y:p.y+mdy}));}
+        else if(it.p1){it.p1={x:it.p1.x+mdx,y:it.p1.y+mdy};it.p2={x:it.p2.x+mdx,y:it.p2.y+mdy};}
         const el=document.getElementById('item-'+it.id);
         for(const grp of groups){if(grp.items.find(i=>i.id===it.id)){if(el){el.innerHTML='';redrawItem(el,it,grp.color);}break;}}
       });
     } else {
-      // Single item drag
+      // Single item drag — delta-basiert für alle Typen
+      if(!dragging._lastPos){dragging._lastPos={x:pos.x,y:pos.y};}
+      const dx=pos.x-dragging._lastPos.x,dy=pos.y-dragging._lastPos.y;
+      dragging._lastPos={x:pos.x,y:pos.y};
       if(item.type==='symbol'){
-        item.x=pos.x-dragOffX;item.y=pos.y-dragOffY;
+        item.x+=dx;item.y+=dy;
       } else if(item.type==='text'){
-        item.pos={x:pos.x-dragOffX,y:pos.y-dragOffY};
+        item.pos={x:item.pos.x+dx,y:item.pos.y+dy};
       } else if(item.type==='measure'){
-        const dx=pos.x-dragOffX-itemCenter(item).cx,dy=pos.y-dragOffY-itemCenter(item).cy;
         item.x1+=dx;item.y1+=dy;item.x2+=dx;item.y2+=dy;
-      } else if(item.type==='polyline'){
-        const c=itemCenter(item);const dx=pos.x-dragOffX-c.cx,dy=pos.y-dragOffY-c.cy;
+      } else if(item.type==='line'){
+        item.p1={x:item.p1.x+dx,y:item.p1.y+dy};item.p2={x:item.p2.x+dx,y:item.p2.y+dy};
+      } else if(item.pts){
         item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));
-      } else if(item.type==='angle'){
-        const c=itemCenter(item);const dx=pos.x-dragOffX-c.cx,dy=pos.y-dragOffY-c.cy;
-        item.pts=item.pts.map(p=>({x:p.x+dx,y:p.y+dy}));
-      } else {
-        const dx=pos.x-dragOffX-itemCenter(item).cx,dy=pos.y-dragOffY-itemCenter(item).cy;
+      } else if(item.p1){
         item.p1={x:item.p1.x+dx,y:item.p1.y+dy};item.p2={x:item.p2.x+dx,y:item.p2.y+dy};
       }
       const el=document.getElementById('item-'+item.id);
@@ -1025,10 +1184,38 @@ wrap.addEventListener('mousemove',e=>{
     const last=polyPts[polyPts.length-1];
     polyRubber=tempLine(last.x,last.y,pos.x,pos.y,groupColor());
   }
+  if(mode==='area'&&areaPts.length>0){
+    if(areaRubber)areaRubber.remove();
+    const last=areaPts[areaPts.length-1];
+    areaRubber=tempLine(last.x,last.y,pos.x,pos.y,groupColor());
+    // Snap-Indikator auf Startpunkt
+    const first=areaPts[0];
+    const snapDist=18/viewScale;
+    if(areaSnapIndicator)areaSnapIndicator.remove();
+    if(Math.hypot(pos.x-first.x,pos.y-first.y)<snapDist&&areaPts.length>=3){
+      areaSnapIndicator=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      areaSnapIndicator.setAttribute('cx',first.x);areaSnapIndicator.setAttribute('cy',first.y);
+      areaSnapIndicator.setAttribute('r',8/viewScale);
+      areaSnapIndicator.setAttribute('fill','none');areaSnapIndicator.setAttribute('stroke','#47c8ff');
+      areaSnapIndicator.setAttribute('stroke-width',2);
+      svg.appendChild(areaSnapIndicator);
+    }
+  }
   if(mode==='angle'&&anglePts.length>0){
     if(angleRubber)angleRubber.remove();
     const last=anglePts[anglePts.length-1];
     angleRubber=tempLine(last.x,last.y,pos.x,pos.y,'#ff47d0');
+  }
+  if(mode==='line'&&drawing&&startPt){
+    if(lineRubber)lineRubber.remove();
+    const snapped=snapAngle(startPt,pos);
+    lineRubber=tempLine(startPt.x,startPt.y,snapped.x,snapped.y,groupColor());
+  }
+  if(mode==='drawpoly'&&linePts.length>0){
+    if(lineRubber)lineRubber.remove();
+    const last2=linePts[linePts.length-1];
+    const snapped=snapAngle(last2,pos);
+    lineRubber=tempLine(last2.x,last2.y,snapped.x,snapped.y,groupColor());
   }
 });
 
@@ -1048,6 +1235,51 @@ wrap.addEventListener('mousedown',e=>{
         rotStartItemAngle=found.rot||0;
         e.preventDefault();return;
       }}
+    }
+
+    // Polyline: Punkt direkt in mousedown setzen
+    if(mode==='polyline'&&calibrated&&activeGroupId&&!spaceDown){
+      if(polyRubber){polyRubber.remove();polyRubber=null;}
+      if(polyPts.length>0){
+        const last=polyPts[polyPts.length-1];
+        if(Math.hypot(pos.x-last.x,pos.y-last.y)>=3){
+          const sg=document.createElementNS('http://www.w3.org/2000/svg','g');
+          const ln=document.createElementNS('http://www.w3.org/2000/svg','line');
+          ln.setAttribute('x1',String(last.x));ln.setAttribute('y1',String(last.y));
+          ln.setAttribute('x2',String(pos.x));ln.setAttribute('y2',String(pos.y));
+          ln.setAttribute('stroke',groupColor());ln.setAttribute('stroke-width','3');
+          ln.setAttribute('stroke-linecap','round');
+          sg.appendChild(ln);
+          svg.appendChild(sg);
+          polySegs.push(sg);
+          // Statusbar Debug
+          const dbg=document.getElementById('cal-status');
+          if(dbg)dbg.textContent='Seg: '+polySegs.length+' pts: '+polyPts.length+' svg-children: '+svg.children.length;
+        }
+      }
+      polyPts.push(pos);
+      e.preventDefault();return;
+    }
+    // Zeichnen-Polylinie: Punkt direkt in mousedown setzen mit sofort sichtbaren Segmenten
+    if(mode==='drawpoly'&&calibrated&&activeGroupId&&!spaceDown){
+      if(lineRubber){lineRubber.remove();lineRubber=null;}
+      const snapped=linePts.length>0?snapAngle(linePts[linePts.length-1],pos):pos;
+      if(linePts.length>0){
+        const last=linePts[linePts.length-1];
+        if(Math.hypot(snapped.x-last.x,snapped.y-last.y)<3){e.preventDefault();return;}
+        // Segment sofort sichtbar zeichnen
+        const sg=document.createElementNS('http://www.w3.org/2000/svg','g');
+        const ln=document.createElementNS('http://www.w3.org/2000/svg','line');
+        ln.setAttribute('x1',String(last.x));ln.setAttribute('y1',String(last.y));
+        ln.setAttribute('x2',String(snapped.x));ln.setAttribute('y2',String(snapped.y));
+        ln.setAttribute('stroke',groupColor());ln.setAttribute('stroke-width',String(getStrokeWidth()));
+        ln.setAttribute('stroke-linecap','round');
+        sg.appendChild(ln);svg.appendChild(sg);
+        if(!window._drawpolySegs)window._drawpolySegs=[];
+        window._drawpolySegs.push(sg);
+      }
+      linePts.push(snapped);
+      e.preventDefault();return;
     }
     const hit=findDraggable(pos.x,pos.y);
     const isSelectMode=mode==='select';
@@ -1104,7 +1336,7 @@ wrap.addEventListener('mouseup',e=>{
   if(dragging){
     if(!didDrag){
       if(dragging.item.type==='text'){justClickedItem=true;openTextEditModal(dragging.item);}
-      else if(dragging.item.type==='symbol'&&selectedIds.size<=1){justClickedItem=true;openSymEditModal(dragging.item);}
+      // Symbol/Linie: Modal öffnet sich per Doppelklick (nicht single click)
     } else {justDragged=true;}
     dragging=null;didDrag=false;updateCursor();
   }
@@ -1147,10 +1379,32 @@ wrap.addEventListener('click',e=>{
     else{drawing=false;if(activeLine){activeLine.remove();activeLine=null;}addShape(mode,startPt,p);startPt=null;}
     return;
   }
-  if(mode==='polyline'){
-    if(polyRubber){polyRubber.remove();polyRubber=null;}
-    if(polyPts.length>0){const last=polyPts[polyPts.length-1];if(Math.hypot(p.x-last.x,p.y-last.y)<3)return;polySegs.push(tempLine(last.x,last.y,p.x,p.y,groupColor()));}
-    polyPts.push(p);return;
+  if(mode==='line'){
+    if(!drawing){drawing=true;startPt=p;}
+    else{
+      const snapped=snapAngle(startPt,p);
+      drawing=false;if(lineRubber){lineRubber.remove();lineRubber=null;}
+      addDrawLine(startPt,snapped);startPt=null;
+    }
+    return;
+  }
+  if(mode==='area'){
+    if(areaRubber){areaRubber.remove();areaRubber=null;}
+    if(areaSnapIndicator){areaSnapIndicator.remove();areaSnapIndicator=null;}
+    // Snap auf Startpunkt?
+    if(areaPts.length>=3){
+      const first=areaPts[0];
+      const snapDist=18/viewScale;
+      if(Math.hypot(p.x-first.x,p.y-first.y)<snapDist){finishArea();return;}
+    }
+    // Letzten Punkt nicht doppeln
+    if(areaPts.length>0){const last=areaPts[areaPts.length-1];if(Math.hypot(p.x-last.x,p.y-last.y)<3)return;}
+    // Vorschau-Linie zum vorherigen Punkt
+    if(areaPts.length>0){
+      const last=areaPts[areaPts.length-1];
+      areaPrev.push(tempLine(last.x,last.y,p.x,p.y,groupColor()));
+    }
+    areaPts.push(p);return;
   }
   if(mode==='angle'){
     if(angleRubber){angleRubber.remove();angleRubber=null;}
@@ -1163,11 +1417,75 @@ wrap.addEventListener('click',e=>{
   }
 });
 
-wrap.addEventListener('dblclick',e=>{if(mode==='polyline'&&polyPts.length>=2)finishPolyline();});
+wrap.addEventListener('dblclick',e=>{
+  if(mode==='polyline'&&polyPts.length>=2)finishPolyline();
+  if(mode==='area'&&areaPts.length>=3)finishArea();
+  if(mode==='drawpoly'&&linePts.length>=2)finishDrawPoly();
+  // Doppelklick auf Symbol/Linie öffnet Modal
+  if(mode==='select'){
+    const pos=canvasPos(e);
+    const hit=findDraggable(pos.x,pos.y);
+    if(hit&&hit.item.type==='symbol'){openSymEditModal(hit.item);}
+    else if(hit&&(hit.item.type==='line'||hit.item.type==='drawpoly')){openSymEditModal(hit.item);}
+  }
+});
+
+// ── Context Menu ──
+let ctxTargetItem=null,ctxTargetGrp=null;
+function getCtxMenu(){return document.getElementById('ctx-menu');}
+function showCtxMenu(x,y,hits){
+  const menu=getCtxMenu();if(!menu)return;
+  const objList=document.getElementById('ctx-object-list');
+  objList.innerHTML='';
+  if(hits.length>1){
+    objList.style.display='block';
+    hits.forEach(({item,grp},i)=>{
+      const d=document.createElement('div');d.className='ctx-obj'+(i===0?' active-ctx':'');
+      d.textContent=item.label;
+      d.onclick=()=>{ctxTargetItem=item;ctxTargetGrp=grp;objList.querySelectorAll('.ctx-obj').forEach(el=>el.classList.remove('active-ctx'));d.classList.add('active-ctx');};
+      objList.appendChild(d);
+    });
+    ctxTargetItem=hits[0].item;ctxTargetGrp=hits[0].grp;
+  } else {
+    objList.style.display='none';
+    ctxTargetItem=hits[0].item;ctxTargetGrp=hits[0].grp;
+  }
+  menu.style.display='block';
+  menu.style.left=Math.min(x,window.innerWidth-185)+'px';
+  menu.style.top=Math.min(y,window.innerHeight-155)+'px';
+}
+function hideCtxMenu(){const m=getCtxMenu();if(m)m.style.display='none';ctxTargetItem=null;ctxTargetGrp=null;}
+document.getElementById('ctx-edit').onclick=(e)=>{
+  e.stopPropagation();
+  if(!ctxTargetItem)return;
+  const item=ctxTargetItem;hideCtxMenu();
+  if(item.type==='text')openTextEditModal(item);
+  else openSymEditModal(item);
+};
+document.getElementById('ctx-copy').onclick=(e)=>{
+  e.stopPropagation();
+  if(!ctxTargetItem||!ctxTargetGrp)return;
+  const gid=ctxTargetGrp.id,iid=ctxTargetItem.id;hideCtxMenu();
+  copyItem(gid,iid);
+};
+document.getElementById('ctx-del').onclick=(e)=>{
+  e.stopPropagation();
+  if(!ctxTargetItem||!ctxTargetGrp)return;
+  const gid=ctxTargetGrp.id,iid=ctxTargetItem.id;hideCtxMenu();
+  deleteItem(gid,iid);
+};
+document.addEventListener('click',e=>{const m=getCtxMenu();if(m&&m.style.display!=='none'&&!m.contains(e.target))hideCtxMenu();});
+
 wrap.addEventListener('contextmenu',e=>{
   e.preventDefault();
-  if(mode==='polyline'&&polyPts.length>=2)finishPolyline();
-  if(mode==='angle'&&anglePts.length>=2)finishAngle();
+  if(mode==='polyline'&&polyPts.length>=2){finishPolyline();return;}
+  if(mode==='angle'&&anglePts.length>=2){finishAngle();return;}
+  if(mode==='area'&&areaPts.length>=3){finishArea();return;}
+  if(mode==='drawpoly'&&linePts.length>=2){finishDrawPoly();return;}
+  const pos=canvasPos(e);
+  const hits=[];
+  for(const grp of groups){for(const item of [...grp.items].reverse()){if(isOverItem(pos.x,pos.y,item))hits.push({item,grp});}}
+  if(hits.length)showCtxMenu(e.clientX,e.clientY,hits);
 });
 
 // ══════════════════════════════════════════
@@ -1205,7 +1523,7 @@ function deselectSymbol(redraw=true){deselectAll(redraw);}
 function redrawItemById(id){
   for(const grp of groups){
     const item=grp.items.find(i=>i.id===id);
-    if(item){const el=document.getElementById('item-'+id);if(el){el.innerHTML='';redrawItem(el,item,grp.color);}break;}
+    if(item){const el=document.getElementById('item-'+id);if(el){el.innerHTML='';redrawItem(el,item,grp.color,!!grp.hideLabels);}break;}
   }
 }
 
@@ -1213,6 +1531,7 @@ function deleteSelectedSymbol(){
   if(!selectedIds.size)return;
   selectedIds.forEach(id=>{
     for(const grp of groups){
+      if(grp.locked)continue;
       const idx=grp.items.findIndex(i=>i.id===id);
       if(idx>=0){const el=document.getElementById('item-'+id);if(el)el.remove();grp.items.splice(idx,1);break;}
     }
@@ -1244,7 +1563,8 @@ function selectItemsInRect(rx,ry,rw,rh){
 // ══════════════════════════════════════════
 function openSymEditModal(item){
   editingSymItem=item;
-  document.getElementById('sem-title').textContent='Symbol bearbeiten: '+item.label;
+  const isDrawTool=item.type==='line'||item.type==='drawpoly';
+  document.getElementById('sem-title').textContent=(isDrawTool?'Linie bearbeiten: ':'Symbol bearbeiten: ')+item.label;
   document.getElementById('sem-label').value=item.label;
   document.getElementById('sem-rot').value=item.rot||0;
   document.getElementById('sem-rot-val').textContent=(item.rot||0)+'°';
@@ -1252,15 +1572,22 @@ function openSymEditModal(item){
   document.getElementById('sem-opacity').value=opPct;
   document.getElementById('sem-opacity-val').textContent=opPct+'%';
   const scaleWrap=document.getElementById('sem-scale-wrap');
-  if(item.scalable){
-    scaleWrap.style.display='block';
+  const strokeWrap=document.getElementById('sem-stroke-wrap');
+  if(isDrawTool){
+    scaleWrap.style.display='none';
+    strokeWrap.style.display='block';
+    document.getElementById('sem-sw').value=item.sw||2;
+    document.getElementById('sem-sw-val').textContent=(item.sw||2)+'px';
+  } else if(item.scalable){
+    scaleWrap.style.display='block';strokeWrap.style.display='none';
     document.getElementById('sem-w').value=item.realW.toFixed(2);
     document.getElementById('sem-h').value=item.realH.toFixed(2);
-  } else {scaleWrap.style.display='none';}
+  } else {scaleWrap.style.display='none';strokeWrap.style.display='none';}
   document.getElementById('sym-edit-modal').classList.remove('hidden');
-  // Focus: scalable symbols → width field, others → label
+  document.getElementById('sem-show-label').checked = item.showLabel!==false;
   setTimeout(()=>{
-    if(item.scalable) document.getElementById('sem-w').focus();
+    if(isDrawTool)document.getElementById('sem-sw').focus();
+    else if(item.scalable)document.getElementById('sem-w').focus();
     else document.getElementById('sem-label').focus();
   },50);
 }
@@ -1268,33 +1595,37 @@ function closeSymEditModal(){document.getElementById('sym-edit-modal').classList
 function confirmSymEdit(){
   if(!editingSymItem)return;
   const item=editingSymItem;
-  item.rot=parseInt(document.getElementById('sem-rot').value)||0;
-  item.opacity=parseInt(document.getElementById('sem-opacity').value)/100;
-  if(item.scalable){
+  const isDrawTool=item.type==='line'||item.type==='drawpoly';
+  if(!isDrawTool){
+    item.rot=parseInt(document.getElementById('sem-rot').value)||0;
+    item.opacity=parseInt(document.getElementById('sem-opacity').value)/100;
+  }
+  if(isDrawTool){
+    item.sw=parseFloat(document.getElementById('sem-sw').value)||2;
+    item.label=document.getElementById('sem-label').value.trim()||item.label;
+  } else if(item.scalable){
     const newW=parseFloat(document.getElementById('sem-w').value);
     const newH=parseFloat(document.getElementById('sem-h').value);
     if(newW>0&&newH>0&&pxPerUnit){
       item.realW=newW;item.realH=newH;
       item.pw=newW*pxPerUnit;item.ph=newH*pxPerUnit;
-      // Traverse: Label = "X.XX m" + optionaler Suffix mit Bindestrich
       if(item.symId==='traverse'){
         const manualLabel=document.getElementById('sem-label').value.trim();
         const lenStr=fmtVal(newW,unit);
-        // Prüfe ob manuell ein Suffix nach Bindestrich eingegeben wurde
         const dashIdx=manualLabel.indexOf('-');
         const suffix=dashIdx>=0?manualLabel.slice(dashIdx):'';
         item.label=lenStr+(suffix?suffix:'');
       }
     }
   }
-  // Für nicht-scalable oder nicht-Traverse: label aus Feld
-  if(item.symId!=='traverse'){
+  if(!isDrawTool&&item.symId!=='traverse'){
     item.label=document.getElementById('sem-label').value.trim()||item.label;
   }
+  item.showLabel = document.getElementById('sem-show-label').checked;
   for(const grp of groups){
     if(grp.items.find(i=>i.id===item.id)){
       const el=document.getElementById('item-'+item.id);
-      if(el){el.innerHTML='';redrawItem(el,item,grp.color);}
+      if(el){el.innerHTML='';redrawItem(el,item,grp.color,!!grp.hideLabels);}
       break;
     }
   }
@@ -1354,7 +1685,7 @@ function finishCalibration(x1,y1,x2,y2,px){
   btn.textContent='📏 Kalibrieren';btn.classList.remove('waiting');btn.classList.add('a2');
   mode='measure';
   document.getElementById('cal-dot').style.background='var(--accent)';
-  document.getElementById('cal-status').textContent=`✓ Kalibriert: ${fmtVal(calKnownVal,unit)}`;
+  document.getElementById('cal-status').textContent=`\u2713 Kalibriert: ${fmtVal(calKnownVal,unit)}`;
   recalcAllMeasurements();lockTools(false);setMode('select');
 }
 function recalcAllMeasurements(){
@@ -1369,7 +1700,7 @@ function recalcAllMeasurements(){
   renderSidebar();
 }
 function lockTools(l){
-  ['measure-btn','poly-btn','angle-btn','text-btn'].forEach(id=>document.getElementById(id).disabled=l);
+  ['measure-btn','poly-btn','area-btn','angle-btn','line-btn','drawpoly-btn','text-btn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=l;});
 }
 lockTools(true);
 
@@ -1429,6 +1760,7 @@ function toggleCollapse(gid){const grp=groups.find(g=>g.id===gid);if(!grp)return
 function selectGroup(gid){activeGroupId=gid;renderSidebar();}
 function deleteItem(gid,iid){
   const grp=groups.find(g=>g.id===gid);if(!grp)return;
+  if(grp.locked){alert('Gruppe ist gesperrt.');return;}
   grp.items=grp.items.filter(i=>i.id!==iid);
   const el=document.getElementById('item-'+iid);if(el)el.remove();
   if(selectedSymItemId===iid){selectedSymItemId=null;}
@@ -1484,17 +1816,69 @@ function addMeasure(x1,y1,x2,y2,px){
   grp.items.push({id,type:'measure',x1,y1,x2,y2,px,label,rv});renderSidebar();
 }
 
+function finishArea(){
+  if(areaRubber){areaRubber.remove();areaRubber=null;}
+  if(areaSnapIndicator){areaSnapIndicator.remove();areaSnapIndicator=null;}
+  areaPrev.forEach(l=>l.remove());areaPrev=[];
+  const pts=areaPts.splice(0);
+  if(pts.length<3)return;
+  const grp=groups.find(g=>g.id===activeGroupId);if(!grp)return;
+  const id=++idCounter;
+  // Gauß'sche Flächenformel (Shoelace)
+  let areaPx=0;
+  for(let i=0;i<pts.length;i++){
+    const j=(i+1)%pts.length;
+    areaPx+=pts[i].x*pts[j].y;
+    areaPx-=pts[j].x*pts[i].y;
+  }
+  areaPx=Math.abs(areaPx)/2;
+  const areaM2=areaPx/(pxPerUnit*pxPerUnit);
+  // Umfang
+  let perimPx=0;
+  for(let i=0;i<pts.length;i++){
+    const j=(i+1)%pts.length;
+    perimPx+=Math.hypot(pts[j].x-pts[i].x,pts[j].y-pts[i].y);
+  }
+  const perimM=perimPx/pxPerUnit;
+  const label=`${areaM2.toFixed(2)} m\u00B2  |  U: ${perimM.toFixed(2)} m`;
+  const g=mkG('item-'+id);
+  // Polygon zeichnen
+  const pointsStr=pts.map(p=>`${p.x},${p.y}`).join(' ');
+  const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  poly.setAttribute('points',pointsStr);
+  poly.setAttribute('fill',grp.color+'33');
+  poly.setAttribute('stroke',grp.color);
+  poly.setAttribute('stroke-width',1.5);
+  g.appendChild(poly);
+  // Eckpunkte
+  pts.forEach(p=>dot(g,p.x,p.y,grp.color));
+  // Label in der Mitte
+  const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length;
+  const cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  svgLabel(g,cx,cy,label,grp.color);
+  svg.appendChild(g);
+  grp.items.push({id,type:'area',pts:[...pts],areaM2,perimM,label});
+  areaPts=[];renderSidebar();
+}
+
+function cancelArea(){
+  if(areaRubber){areaRubber.remove();areaRubber=null;}
+  if(areaSnapIndicator){areaSnapIndicator.remove();areaSnapIndicator=null;}
+  areaPrev.forEach(l=>l.remove());areaPrev=[];areaPts=[];
+}
+
 function finishPolyline(){
   if(polyPts.length>=2){const a=polyPts[polyPts.length-1],b=polyPts[polyPts.length-2];if(Math.hypot(a.x-b.x,a.y-b.y)<8){polyPts.pop();const s=polySegs.pop();if(s)s.remove();}}
   if(polyPts.length<2){cancelPolyline();return;}
   if(polyRubber){polyRubber.remove();polyRubber=null;}
+  if(window._polyPreviewG){window._polyPreviewG.remove();window._polyPreviewG=null;}
   const grp=groups.find(g=>g.id===activeGroupId);if(!grp){cancelPolyline();return;}
   const id=++idCounter;
   let totalPx=0;for(let i=1;i<polyPts.length;i++)totalPx+=Math.hypot(polyPts[i].x-polyPts[i-1].x,polyPts[i].y-polyPts[i-1].y);
   const rv=totalPx/pxPerUnit;const label='Σ '+fmtVal(rv,unit);
-  polySegs.forEach(s=>s.remove());polySegs=[];
+  polySegs.forEach(sg=>{if(sg&&sg.parentNode)sg.remove();});polySegs=[];
   const g=mkG('item-'+id);
-  for(let i=1;i<polyPts.length;i++){svgLine(g,polyPts[i-1].x,polyPts[i-1].y,polyPts[i].x,polyPts[i].y,grp.color,1.5,[]);if(i===1)dot(g,polyPts[0].x,polyPts[0].y,grp.color);dot(g,polyPts[i].x,polyPts[i].y,grp.color);}
+  for(let i=1;i<polyPts.length;i++){svgLine(g,polyPts[i-1].x,polyPts[i-1].y,polyPts[i].x,polyPts[i].y,grp.color,1.5,[]);}
   const mi=Math.floor(polyPts.length/2);
   svgLabel(g,(polyPts[mi-1]||polyPts[0]).x,(polyPts[mi-1]||polyPts[0]).y,label,grp.color);
   svg.appendChild(g);
@@ -1642,6 +2026,14 @@ function svgLabel(g,x,y,text,bg){
 }
 function tempLine(x1,y1,x2,y2,color){const g=mkG('');svgLine(g,x1,y1,x2,y2,color,1.5,[6,3]);svg.appendChild(g);return g;}
 function fmtVal(v,u){if(v>=1000)return(v/1000).toFixed(2)+' k'+u;if(v<0.01)return(v*1000).toFixed(1)+' m'+u;return v.toFixed(2)+' '+u;}
+function snapAngle(from,to){
+  const dx=to.x-from.x,dy=to.y-from.y,len=Math.hypot(dx,dy);if(len<2)return to;
+  const angle=Math.atan2(dy,dx)*180/Math.PI;
+  const nearest=Math.round(angle/45)*45;
+  if(Math.abs(angle-nearest)<10){const rad=nearest*Math.PI/180;return{x:from.x+len*Math.cos(rad),y:from.y+len*Math.sin(rad)};}
+  return to;
+}
+function isDashedGroup(grp){return grp&&grp.color===DASHED_COLOR;}
 
 // ══════════════════════════════════════════
 // REDRAW
@@ -1649,10 +2041,12 @@ function fmtVal(v,u){if(v>=1000)return(v/1000).toFixed(2)+' k'+u;if(v<0.01)retur
 function redrawAll(){
   svg.querySelectorAll('g[id^="item-"]').forEach(g=>g.remove());
   // Erste Gruppe in Liste = oben im Canvas = zuletzt ins SVG (SVG: letztes Element ist vorne)
-  [...groups].reverse().forEach(grp=>{grp.items.forEach(item=>{const g=mkG('item-'+item.id);if(!grp.visible)g.style.display='none';redrawItem(g,item,grp.color);svg.appendChild(g);});});
+  [...groups].reverse().forEach(grp=>{grp.items.forEach(item=>{const g=mkG('item-'+item.id);if(!grp.visible)g.style.display='none';redrawItem(g,item,grp.color,!!grp.hideLabels);svg.appendChild(g);});});
 }
 
-function redrawItem(g,item,groupCol){
+function redrawItem(g,item,groupCol,hideLabel=false){
+  // hideLabel: true wenn Gruppe hideLabels=true UND item.showLabel nicht explizit true
+  const showLabel = hideLabel ? (item.showLabel===true) : (item.showLabel!==false);
   const color=item.forcedColor||groupCol;
   const symOpacity=item.opacity!=null?item.opacity:0.9;
   if(item.type==='symbol'){
@@ -1672,7 +2066,7 @@ function redrawItem(g,item,groupCol){
     g.appendChild(wg);
     // label below (not rotated for readability)
     const labelY=cy+item.ph/2+14;
-    svgLabel(g,cx,labelY,item.label,color);
+    if(showLabel)svgLabel(g,cx,labelY,item.label,color);
     // selection handles — für alle selektierten Items
     if(selectedIds.has(item.id)){
       // bounding box corners (axis-aligned)
@@ -1701,13 +2095,48 @@ function redrawItem(g,item,groupCol){
       rotLine.setAttribute('stroke','#47c8ff');rotLine.setAttribute('stroke-width',1);rotLine.setAttribute('stroke-dasharray','3 2');
       g.appendChild(rotLine);
     }
+  } else if(item.type==='line'){
+    const dashedL=groupCol===DASHED_COLOR;
+    const ll=svgEl(g,'line');
+    svgAttr(ll,{x1:item.p1.x,y1:item.p1.y,x2:item.p2.x,y2:item.p2.y,stroke:groupCol,'stroke-width':item.sw||2,'stroke-linecap':'round'});
+    if(dashedL)ll.setAttribute('stroke-dasharray','8 5');
+    if(selectedIds.has(item.id)){
+      const hl=svgEl(g,'line');
+      svgAttr(hl,{x1:item.p1.x,y1:item.p1.y,x2:item.p2.x,y2:item.p2.y,stroke:'#47c8ff','stroke-width':(item.sw||2)+6,'stroke-linecap':'round',opacity:'0.3'});
+    }
+  } else if(item.type==='drawpoly'){
+    const dashedDP=groupCol===DASHED_COLOR;
+    if(item.pts){
+      for(let i=1;i<item.pts.length;i++){
+        if(selectedIds.has(item.id)){
+          const hl=svgEl(g,'line');
+          svgAttr(hl,{x1:item.pts[i-1].x,y1:item.pts[i-1].y,x2:item.pts[i].x,y2:item.pts[i].y,stroke:'#47c8ff','stroke-width':(item.sw||2)+6,'stroke-linecap':'round',opacity:'0.3'});
+        }
+        const ll=svgEl(g,'line');
+        svgAttr(ll,{x1:item.pts[i-1].x,y1:item.pts[i-1].y,x2:item.pts[i].x,y2:item.pts[i].y,stroke:groupCol,'stroke-width':item.sw||2,'stroke-linecap':'round'});
+        if(dashedDP)ll.setAttribute('stroke-dasharray','8 5');
+      }
+    }
   } else if(item.type==='measure'){
-    svgLine(g,item.x1,item.y1,item.x2,item.y2,groupCol,1.5,[]);
+    const dashedM=groupCol===DASHED_COLOR;
+    svgLine(g,item.x1,item.y1,item.x2,item.y2,groupCol,1.5,dashedM?[8,5]:[]);
     endCaps(g,item.x1,item.y1,item.x2,item.y2,groupCol);
-    svgLabel(g,(item.x1+item.x2)/2,(item.y1+item.y2)/2,item.label,groupCol);
+    if(showLabel)svgLabel(g,(item.x1+item.x2)/2,(item.y1+item.y2)/2,item.label,groupCol);
   } else if(item.type==='polyline'){
-    for(let i=1;i<item.pts.length;i++){svgLine(g,item.pts[i-1].x,item.pts[i-1].y,item.pts[i].x,item.pts[i].y,groupCol,1.5,[]);if(i===1)dot(g,item.pts[0].x,item.pts[0].y,groupCol);dot(g,item.pts[i].x,item.pts[i].y,groupCol);}
-    const mi=Math.floor(item.pts.length/2);svgLabel(g,(item.pts[mi-1]||item.pts[0]).x,(item.pts[mi-1]||item.pts[0]).y,item.label,groupCol);
+    const dashedP=groupCol===DASHED_COLOR;
+    for(let i=1;i<item.pts.length;i++){svgLine(g,item.pts[i-1].x,item.pts[i-1].y,item.pts[i].x,item.pts[i].y,groupCol,1.5,dashedP?[8,5]:[]);}
+    const mi=Math.floor(item.pts.length/2);if(showLabel)svgLabel(g,(item.pts[mi-1]||item.pts[0]).x,(item.pts[mi-1]||item.pts[0]).y,item.label,groupCol);
+  } else if(item.type==='area'){
+    if(!item.pts||item.pts.length<3)return;
+    const pointsStr=item.pts.map(p=>`${p.x},${p.y}`).join(' ');
+    const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    poly.setAttribute('points',pointsStr);poly.setAttribute('fill',groupCol+'33');
+    poly.setAttribute('stroke',groupCol);poly.setAttribute('stroke-width',1.5);
+    g.appendChild(poly);
+    item.pts.forEach(p=>dot(g,p.x,p.y,groupCol));
+    const acx=item.pts.reduce((s,p)=>s+p.x,0)/item.pts.length;
+    const acy=item.pts.reduce((s,p)=>s+p.y,0)/item.pts.length;
+    if(showLabel)svgLabel(g,acx,acy,item.label,groupCol);
   } else if(item.type==='angle'){
     if(item.pts&&item.pts.length===3){
       const pts=item.pts;
@@ -1720,7 +2149,7 @@ function redrawItem(g,item,groupCol){
       arcEl.setAttribute('d',`M${pts[1].x+r*Math.cos(a1)},${pts[1].y+r*Math.sin(a1)} A${r},${r} 0 ${largeArc},1 ${pts[1].x+r*Math.cos(a2)},${pts[1].y+r*Math.sin(a2)}`);
       arcEl.setAttribute('fill','none');arcEl.setAttribute('stroke',groupCol);arcEl.setAttribute('stroke-width',1.2);
       dot(g,pts[0].x,pts[0].y,groupCol);dot(g,pts[1].x,pts[1].y,groupCol);dot(g,pts[2].x,pts[2].y,groupCol);
-      svgLabel(g,pts[1].x,pts[1].y-18,item.label,groupCol);
+      if(showLabel)svgLabel(g,pts[1].x,pts[1].y-18,item.label,groupCol);
     }
   } else if(item.type==='rect'){
     const x=Math.min(item.p1.x,item.p2.x),y=Math.min(item.p1.y,item.p2.y),w=Math.abs(item.p2.x-item.p1.x),h=Math.abs(item.p2.y-item.p1.y);
@@ -1732,7 +2161,9 @@ function redrawItem(g,item,groupCol){
     const cx=(item.p1.x+item.p2.x)/2,cy=(item.p1.y+item.p2.y)/2;
     svgAttr(svgEl(g,'polygon'),{points:`${cx},${item.p1.y} ${item.p2.x},${item.p2.y} ${item.p1.x},${item.p2.y}`,fill:groupCol,stroke:groupCol+'cc','stroke-width':1.5,opacity:.75});
   } else if(item.type==='text'){
-    svgAttr(svgEl(g,'text'),{x:item.pos.x,y:item.pos.y,'font-family':'JetBrains Mono,monospace','font-size':item.sz,'font-weight':700,fill:groupCol}).textContent=item.txt;
+    const tw2=item.txt.length*item.sz*0.65+12;const bh2=item.sz+8;const fg2=labelTextColor(groupCol);
+    svgAttr(svgEl(g,'rect'),{x:item.pos.x-tw2/2,y:item.pos.y-bh2/2,width:tw2,height:bh2,rx:3,fill:groupCol});
+    svgAttr(svgEl(g,'text'),{x:item.pos.x,y:item.pos.y,'text-anchor':'middle','dominant-baseline':'middle','font-family':'JetBrains Mono,monospace','font-size':item.sz,'font-weight':700,fill:fg2}).textContent=item.txt;
   }
 }
 
@@ -1743,6 +2174,8 @@ document.getElementById('group-list').addEventListener('click',e=>{
   const md=e.target.closest('.m-del');if(md){deleteItem(+md.dataset.gid,+md.dataset.iid);return;}
   const mc=e.target.closest('.m-copy');if(mc){copyItem(+mc.dataset.gid,+mc.dataset.iid);return;}
   const me=e.target.closest('.m-edit');if(me){editItemFromSidebar(+me.dataset.gid,+me.dataset.iid);return;}
+  const gl=e.target.closest('.g-lock');if(gl){e.stopPropagation();const grp=groups.find(g=>g.id===+gl.dataset.gid);if(grp){grp.locked=!grp.locked;renderSidebar();}return;}
+  const glbl=e.target.closest('.g-lbl');if(glbl){e.stopPropagation();const grp=groups.find(g=>g.id===+glbl.dataset.gid);if(grp){grp.hideLabels=!grp.hideLabels;redrawAll();renderSidebar();}return;}
   const gd=e.target.closest('.g-del');if(gd){deleteGroup(+gd.dataset.gid);return;}
   const ge=e.target.closest('.g-edit');if(ge){e.stopPropagation();openGroupModal(+ge.dataset.gid);return;}
   const gv=e.target.closest('.g-vis');if(gv){e.stopPropagation();toggleVis(+gv.dataset.gid);return;}
@@ -1836,8 +2269,10 @@ function renderSidebar(){
       <div class="g-dot" style="background:${grp.color}"></div>
       <div class="g-name">${grp.name}</div>
       <div class="g-count">${grp.items.length}</div>
-      <button class="g-edit" data-gid="${grp.id}" title="Bearbeiten">✏️</button>
+      <button class="g-edit" data-gid="${grp.id}" title="Bearbeiten">✏</button>
       <button class="g-vis" data-gid="${grp.id}" title="Ein/Ausblenden">${grp.visible?'👁':'🚫'}</button>
+      <button class="g-lock" data-gid="${grp.id}" title="${grp.locked?'Entsperren':'Sperren'}" style="background:none;border:none;cursor:pointer;padding:1px 3px;font-size:11px;color:${grp.locked?'var(--accent3)':'var(--muted)'};">${grp.locked?'🔒':'🔓'}</button>
+      <button class="g-lbl" data-gid="${grp.id}" title="${grp.hideLabels?'Labels anzeigen':'Labels ausblenden'}" style="background:none;border:none;cursor:pointer;padding:1px 3px;font-size:11px;color:${grp.hideLabels?'var(--muted)':'var(--accent2)'};">T</button>
       <button class="g-tog${grp.collapsed?'':' open'}" data-gid="${grp.id}">›</button>
       <button class="g-del" data-gid="${grp.id}" title="Löschen">✕</button>
     `;
@@ -1862,7 +2297,7 @@ function renderSidebar(){
       symEntries.forEach(([label,count])=>{
         const badge=document.createElement('span');
         badge.style.cssText=`font-size:8px;background:${grp.color}33;border:1px solid ${grp.color}66;color:${sidebarTextColor(grp.color)};border-radius:3px;padding:1px 5px;font-family:var(--font-mono);`;
-        badge.textContent=`${label} ×${count}`;
+        badge.textContent=`${label} x${count}`;
         sumDiv.appendChild(badge);
       });
       ic.appendChild(sumDiv);
@@ -1903,22 +2338,22 @@ function renderSidebar(){
         });
         ic.appendChild(lb);ic.appendChild(sb);
 
-        const icons={measure:'📏',polyline:'〽',angle:'∠',rect:'▭',circle:'●',triangle:'▲',text:'T',symbol:'◆'};
+        const icons={measure:'[d]',polyline:'~p',area:'[]',angle:'<>',line:'/',drawpoly:'~',rect:'r',circle:'o',triangle:'t',text:'T',symbol:'*'};
         const canCopy=DRAGGABLE_TYPES.includes(item.type);
         const canEdit=['rect','circle','triangle','text','symbol'].includes(item.type);
         const sidebarColor=sidebarTextColor(grp.color);
 
         const div=document.createElement('div');div.className='m-item';div.draggable=true;
         div.innerHTML=`
-          <div style="cursor:grab;color:var(--muted);font-size:10px;padding:0 3px;user-select:none;flex-shrink:0">⠿</div>
+          <div style="cursor:grab;color:var(--muted);font-size:10px;padding:0 3px;user-select:none;flex-shrink:0">\u283F</div>
           <div class="m-dot" style="background:${item.forcedColor||grp.color};border:1px solid rgba(255,255,255,.2)"></div>
           <div class="m-info">
-            <div class="m-val" style="color:${sidebarColor}">${icons[item.type]||'•'} ${item.label}</div>
-            <div class="m-sub">#${item.id} · ${item.type}${item.type==='symbol'&&item.rot?` · ${item.rot}°`:''}</div>
+            <div class="m-val" style="color:${sidebarColor}">${icons[item.type]||'\u2022'} ${item.label}</div>
+            <div class="m-sub">#${item.id} \u00B7 ${item.type}${item.type==='symbol'&&item.rot?` · ${item.rot}°`:''}</div>
           </div>
           ${canEdit?`<button class="m-edit" data-gid="${grp.id}" data-iid="${item.id}" title="Bearbeiten">✏️</button>`:''}
           ${canCopy?`<button class="m-copy" data-gid="${grp.id}" data-iid="${item.id}" title="Kopieren">⧉</button>`:''}
-          <button class="m-del" data-gid="${grp.id}" data-iid="${item.id}" title="Löschen">✕</button>
+          <button class="m-del" data-gid="${grp.id}" data-iid="${item.id}" title="L\u00F6schen">\u2715</button>
         `;
         div.addEventListener('dragstart',e=>{
           sidebarDragIid=item.id;sidebarDragSrcGid=grp.id;sidebarDragGid=null;
@@ -1964,21 +2399,62 @@ function renderSidebar(){
 }
 
 
+function addDrawLine(p1,p2){
+  const grp=groups.find(g=>g.id===activeGroupId);if(!grp)return;
+  const id=++idCounter;const sw=getStrokeWidth();
+  const dashed=isDashedGroup(grp);
+  const g=mkG('item-'+id);
+  const l=svgEl(g,'line');
+  svgAttr(l,{x1:p1.x,y1:p1.y,x2:p2.x,y2:p2.y,stroke:grp.color,'stroke-width':sw,'stroke-linecap':'round'});
+  if(dashed)l.setAttribute('stroke-dasharray','8 5');
+  svg.appendChild(g);
+  grp.items.push({id,type:'line',p1:{...p1},p2:{...p2},sw,label:'Linie'});renderSidebar();
+}
+
+function finishDrawPoly(){
+  if(lineRubber){lineRubber.remove();lineRubber=null;}
+  // Preview-Segmente entfernen
+  if(window._drawpolySegs){window._drawpolySegs.forEach(sg=>{if(sg.parentNode)sg.remove();});window._drawpolySegs=null;}
+  const pts=[...linePts];linePts=[];
+  if(pts.length<2)return;
+  const grp=groups.find(g=>g.id===activeGroupId);if(!grp)return;
+  const id=++idCounter;const sw=getStrokeWidth();
+  const dashed=isDashedGroup(grp);
+  const g=mkG('item-'+id);
+  for(let i=1;i<pts.length;i++){
+    const l=svgEl(g,'line');
+    svgAttr(l,{x1:pts[i-1].x,y1:pts[i-1].y,x2:pts[i].x,y2:pts[i].y,stroke:grp.color,'stroke-width':sw,'stroke-linecap':'round'});
+    if(dashed)l.setAttribute('stroke-dasharray','8 5');
+  }
+  svg.appendChild(g);
+  grp.items.push({id,type:'drawpoly',pts:[...pts],sw,label:'Polylinie'});renderSidebar();
+}
+
+function cancelDrawPoly(){
+  if(lineRubber){lineRubber.remove();lineRubber=null;}
+  if(window._drawpolySegs){window._drawpolySegs.forEach(sg=>{if(sg.parentNode)sg.remove();});window._drawpolySegs=null;}
+  linePts=[];drawing=false;startPt=null;
+}
+
 function cancelDrawing(){
   drawing=false;startPt=null;
   if(activeLine){activeLine.remove();activeLine=null;}
   cancelPolyline();
+  cancelArea();
+  cancelDrawPoly();
   angleLines.forEach(l=>l.remove());angleLines=[];
   if(angleRubber){angleRubber.remove();angleRubber=null;}
   anglePts=[];
 }
 function cancelPolyline(){
   if(polyRubber){polyRubber.remove();polyRubber=null;}
-  polySegs.forEach(g=>g.remove());polyPts=[];polySegs=[];
+  if(window._polyPreviewG){window._polyPreviewG.remove();window._polyPreviewG=null;}
+  polySegs.forEach(sg=>{if(sg&&sg.parentNode)sg.remove();});
+  polyPts=[];polySegs=[];
 }
 function setMode(m){
   cancelDrawing();mode=m;
-  const map={select:'select-btn',measure:'measure-btn',polyline:'poly-btn',angle:'angle-btn',text:'text-btn'};
+  const map={select:'select-btn',measure:'measure-btn',polyline:'poly-btn',area:'area-btn',angle:'angle-btn',line:'line-btn',drawpoly:'drawpoly-btn',text:'text-btn'};
   Object.values(map).forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
   if(map[m]){const el=document.getElementById(map[m]);if(el)el.classList.add('active');}
   // cursor
@@ -2022,7 +2498,7 @@ async function loadProject(file){
   groups=proj.groups||[];idCounter=proj.idCounter||0;
   activeGroupId=groups.length?groups[groups.length-1].id:null;
   if(proj.planOpacity!=null){planOpacity=proj.planOpacity;const v=Math.round(planOpacity*100);document.getElementById('opacity-slider').value=v;document.getElementById('opacity-val').textContent=v+'%';}
-  if(calibrated){document.getElementById('cal-dot').style.background='var(--accent)';document.getElementById('cal-status').textContent=`✓ Kalibriert: ${fmtVal(calKnownVal,unit)}`;lockTools(false);showCalLock(false);}
+  if(calibrated){document.getElementById('cal-dot').style.background='var(--accent)';document.getElementById('cal-status').textContent=`\u2713 Kalibriert: ${fmtVal(calKnownVal,unit)}`;lockTools(false);showCalLock(false);}
   await renderPage();renderSidebar();
 }
 
@@ -2063,7 +2539,7 @@ function exportListPDF(){
   doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(140,140,140);
   const date=new Date().toLocaleDateString('de-AT');
   let totalItems=0;groups.forEach(g=>totalItems+=g.items.length);
-  doc.text(`Objektliste · ${date} · ${totalItems} Einträge`,margin,y);y+=10;
+  doc.text(`Objektliste \u00B7 ${date} \u00B7 ${totalItems} Eintr\u00E4ge`,margin,y);y+=10;
   doc.setDrawColor(200,200,200);doc.setLineWidth(0.3);doc.line(margin,y,pageW-margin,y);y+=6;
   doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(120,120,120);
   doc.text('#',margin,y);doc.text('Bezeichnung',margin+10,y);doc.text('Typ',margin+contentW-30,y);
@@ -2081,7 +2557,7 @@ function exportListPDF(){
     const symCounts={};grp.items.filter(i=>i.type==='symbol').forEach(i=>{symCounts[i.label]=(symCounts[i.label]||0)+1;});
     if(Object.keys(symCounts).length){
       doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100,100,100);
-      const summary=Object.entries(symCounts).map(([l,c])=>`${l} ×${c}`).join('  ·  ');
+      const summary=Object.entries(symCounts).map(([l,c])=>`${l} x${c}`).join('  ·  ');
       doc.text('Symbole: '+summary,margin+4,y);y+=6;
     }
     if(!grp.items.length){doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(160,160,160);doc.text('Keine Einträge',margin+4,y);y+=7;}
@@ -2097,7 +2573,7 @@ function exportListPDF(){
     });y+=2;
   });
   const pageCount=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN v0.2.1 · Seite ${i}/${pageCount}`,margin,295);}
+  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN B035 \u00B7 Seite ${i}/${pageCount}`,margin,295);}
   doc.save('planbazn-liste.pdf');
 }
 
@@ -2134,7 +2610,7 @@ async function restoreAutosave(){
     groups=proj.groups||[];idCounter=proj.idCounter||0;
     activeGroupId=groups.length?groups[groups.length-1].id:null;
     if(proj.planOpacity!=null){planOpacity=proj.planOpacity;const v=Math.round(planOpacity*100);document.getElementById('opacity-slider').value=v;document.getElementById('opacity-val').textContent=v+'%';}
-    if(calibrated){document.getElementById('cal-dot').style.background='var(--accent)';document.getElementById('cal-status').textContent=`✓ Kalibriert: ${fmtVal(calKnownVal,unit)}`;lockTools(false);showCalLock(false);}
+    if(calibrated){document.getElementById('cal-dot').style.background='var(--accent)';document.getElementById('cal-status').textContent=`\u2713 Kalibriert: ${fmtVal(calKnownVal,unit)}`;lockTools(false);showCalLock(false);}
     renderSidebar();showAutosaveStatus('✓ Wiederhergestellt — bitte Plan öffnen');return true;
   }catch(e){return false;}
 }
@@ -2162,7 +2638,7 @@ function confirmNewCanvas(){
   applyTransform();fitToScreen();
   document.getElementById('drop-zone').classList.add('hidden');showCalLock(false);
   document.getElementById('cal-dot').style.background='var(--accent)';
-  document.getElementById('cal-status').textContent=`✓ Auto-kalibriert: ${w}×${h} ${u}`;
+  document.getElementById('cal-status').textContent=`\u2713 Auto-kalibriert: ${w}x${h} ${u}`;
   lockTools(false);closeNewCanvasModal();
   const oldCal=document.getElementById('cal-grp');if(oldCal)oldCal.remove();
   svg.querySelectorAll('.cal-grp').forEach(el=>el.remove());
