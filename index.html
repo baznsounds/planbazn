@@ -88,7 +88,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 #drop-sub{font-size:11px;color:var(--muted);opacity:.5;}
 #canvas-container{position:absolute;transform-origin:0 0;}
 #pdf-canvas{display:block;box-shadow:0 8px 48px rgba(0,0,0,.8);}
-#overlay-svg{position:absolute;top:0;left:0;overflow:visible;}
+#overlay-svg{position:absolute;top:0;left:0;overflow:hidden;shape-rendering:geometricPrecision;pointer-events:none;z-index:2;}
+/* Messlinien bleiben bei Zoom konstant sichtbar */
+#overlay-svg .measure-line, #overlay-svg .draw-line{vector-effect:non-scaling-stroke;}
 #cursor-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--accent3);pointer-events:none;transform:translate(-50%,-50%);display:none;z-index:10;box-shadow:0 0 0 2px rgba(255,107,71,.3);}
 #cal-lock{position:absolute;inset:0;background:rgba(14,15,17,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:50;}
 #cal-lock.hidden{display:none;}
@@ -116,7 +118,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 .g-vis:hover{color:var(--accent2);}.g-del:hover{color:var(--accent3);}.g-edit:hover{color:var(--accent);}
 .g-tog{font-size:16px;font-weight:700;color:var(--muted);transition:transform .18s;flex-shrink:0;background:none;border:none;cursor:pointer;line-height:1;}
 .g-tog.open{transform:rotate(90deg);}
-.group-items{padding:3px 5px 5px;}.group-items.collapsed{display:none;}
+.group-items{padding:3px 5px 5px;}.group-items.collapsed{display:none;}.group-items.collapsed-droptarget{display:block;height:4px;padding:0;overflow:visible;}
 .m-item{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:4px;border:1px solid transparent;margin-bottom:2px;background:var(--bg);}
 .m-item:hover{border-color:var(--border);}
 .m-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
@@ -270,8 +272,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       </div>
       <div id="canvas-container">
         <canvas id="pdf-canvas"></canvas>
-        <svg id="overlay-svg"></svg>
       </div>
+      <svg id="overlay-svg" style="position:absolute;top:0;left:0;pointer-events:auto;overflow:hidden;"></svg>
       <div id="cal-lock" class="hidden">
         <p>📏 Bitte zuerst kalibrieren</p>
         <button class="btn a2" onclick="startCalibrationFromLock()">Jetzt kalibrieren</button>
@@ -288,7 +290,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <div id="statusbar">
         <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
         <span id="cal-status">Nicht kalibriert</span>
-        <span style="margin-left:8px;opacity:.4;font-size:9px;">B043</span>
+        <span style="margin-left:8px;opacity:.4;font-size:9px;">B048</span>
         <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
       </div>
     </div>
@@ -646,9 +648,9 @@ const SYMBOL_LIBRARY = [
       const bh=ph*(0.25/1.30), gap=ph*(0.15/1.30), th=ph*(0.50/1.30);
       const y1=0, y2=bh+gap, y3=bh+gap+th+gap;
       return `
-        <rect x="0" y="${y1}" width="${pw}" height="${bh}" rx="3" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-        <rect x="0" y="${y2}" width="${pw}" height="${th}" rx="3" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
-        <rect x="0" y="${y3}" width="${pw}" height="${bh}" rx="3" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
+        <rect x="0" y="${y1}" width="${pw}" height="${bh}" rx="${bh*0.25}" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
+        <rect x="0" y="${y2}" width="${pw}" height="${th}" rx="${th*0.08}" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
+        <rect x="0" y="${y3}" width="${pw}" height="${bh}" rx="${bh*0.25}" fill="${c}22" stroke="${c}" stroke-width="1.5"/>
       `;
     }
   },
@@ -938,7 +940,7 @@ async function renderPage(){
     await new Promise(r=>{const img=new Image();img.onload=()=>{pdfCanvas.width=img.naturalWidth;pdfCanvas.height=img.naturalHeight;ctx.drawImage(img,0,0);r();};img.src=imgDataUrl;});
   }
   pdfCanvas.style.opacity=planOpacity;
-  svg.setAttribute('width',pdfCanvas.width);svg.setAttribute('height',pdfCanvas.height);
+  applyTransform(); // SVG viewBox set here
   applyTransform();redrawAll();
 }
 function setPlanOpacity(v){
@@ -948,9 +950,22 @@ function setPlanOpacity(v){
 
 // ══════════════════════════════════════════
 // TRANSFORM
+window.addEventListener('resize',()=>applyTransform());
 // ══════════════════════════════════════════
+
 function applyTransform(){
+  // SVG viewBox approach: no CSS scaling → always crisp
+  // The wrap shows a "window" into the document space
+  const wrap=document.getElementById('canvas-wrap');
+  const ww=wrap.clientWidth||800, wh=wrap.clientHeight||600;
+  // viewBox: which part of the doc (in doc-pixels) is visible
+  const vbW=ww/viewScale, vbH=wh/viewScale;
+  const vbX=-panX/viewScale, vbY=-panY/viewScale;
+  svg.setAttribute('viewBox',`${vbX} ${vbY} ${vbW} ${vbH}`);
+  svg.setAttribute('width',ww);svg.setAttribute('height',wh);
+  // PDF canvas: use CSS transform for raster (unavoidably blurry, but that's the PDF image)
   container.style.transform=`translate(${panX}px,${panY}px) scale(${viewScale})`;
+  container.style.transformOrigin='0 0';
   container.style.width=pdfCanvas.width+'px';container.style.height=pdfCanvas.height+'px';
   document.getElementById('zoom-display').textContent=Math.round(viewScale*100)+'%';
 }
@@ -1024,7 +1039,15 @@ wrap.addEventListener('wheel',e=>{
   else{zoom(e.deltaY<0?0.12:-0.12,cx,cy);}
 },{passive:false});
 
-function canvasPos(e){const r=container.getBoundingClientRect();return{x:(e.clientX-r.left)/viewScale,y:(e.clientY-r.top)/viewScale};}
+function canvasPos(e){
+  // Convert screen coords to SVG document coords via viewBox
+  const svgEl=document.getElementById('overlay-svg');
+  const r=svgEl.getBoundingClientRect();
+  const vb=svgEl.viewBox.baseVal;
+  const sx=(e.clientX-r.left)/r.width*vb.width+vb.x;
+  const sy=(e.clientY-r.top)/r.height*vb.height+vb.y;
+  return{x:sx,y:sy};
+}
 function groupColor(){const g=groups.find(g=>g.id===activeGroupId);return g?g.color:'#e8ff47';}
 function updateCursor(){
   if(dragging){container.style.cursor='grabbing';return;}
@@ -2236,6 +2259,7 @@ function redrawItem(g,item,groupCol,hideLabel=false){
     // inner SVG content
     const inner=document.createElementNS('http://www.w3.org/2000/svg','g');
     inner.setAttribute('transform',`translate(${item.x},${item.y})`);
+    // SVG viewBox approach: draw directly in doc coordinates → always crisp
     inner.innerHTML=sym.draw(color,item.pw,item.ph);
     wg.appendChild(inner);
     g.appendChild(wg);
@@ -2413,7 +2437,7 @@ function renderSidebar(){
   }
   function mkSlot(line,onDrop){
     const s=document.createElement('div');
-    s.style.cssText='height:8px;margin:-3px 0;position:relative;z-index:2;';
+    s.style.cssText='height:12px;margin:-4px 0;position:relative;z-index:3;';
     s.addEventListener('dragenter',e=>{
       if(sidebarDragIid==null&&sidebarDragGid==null)return;
       e.preventDefault();_setInsert(line);
@@ -2469,6 +2493,23 @@ function renderSidebar(){
       setTimeout(()=>block.style.opacity='0.45',0);
     });
     hdr.addEventListener('dragend',()=>{block.style.opacity='';sidebarDragGid=null;_clearInsert();});
+    // Allow group reorder by dragging over another group's header
+    hdr.addEventListener('dragover',e=>{
+      if(sidebarDragGid==null||sidebarDragGid===grp.id)return;
+      e.preventDefault();e.stopPropagation();
+      _setInsert(grpLineBefore);
+    });
+    hdr.addEventListener('drop',e=>{
+      e.preventDefault();e.stopPropagation();
+      if(sidebarDragGid==null||sidebarDragGid===grp.id)return;
+      _clearInsert();
+      const fi=groups.findIndex(g=>g.id===sidebarDragGid);
+      let ti=groups.findIndex(g=>g.id===grp.id);
+      if(fi<ti)ti--;
+      if(fi===ti){sidebarDragGid=null;return;}
+      const [m]=groups.splice(fi,1);groups.splice(ti,0,m);
+      sidebarDragGid=null;redrawAll();renderSidebar();
+    });
     block.appendChild(hdr);
 
     // ── Zusammenfassung wenn eingeklappt ──
@@ -2503,6 +2544,18 @@ function renderSidebar(){
     const ic=document.createElement('div');
     ic.className='group-items'+(grp.collapsed?' collapsed':'');
     ic.dataset.collapsed=grp.collapsed?'1':'0';
+    // Wenn eingeklappt: unsichtbare Drop-Zone für Items hinzufügen
+    if(grp.collapsed){
+      const collDropLine=mkLine();
+      const collDropSlot=mkSlot(collDropLine,()=>{
+        if(sidebarDragIid==null)return;
+        const src=groups.find(g=>g.id===sidebarDragSrcGid);
+        if(src)moveItemToGroup(src,sidebarDragIid,grp,grp.items.length);
+        sidebarDragIid=null;sidebarDragSrcGid=null;
+      });
+      collDropSlot.style.cssText='height:16px;margin:0;position:relative;z-index:2;';
+      ic.appendChild(collDropLine);ic.appendChild(collDropSlot);
+    }
 
     // Symbol badges
     const symEntries=Object.entries(symCounts);
@@ -2800,7 +2853,7 @@ function exportListPDF(){
     });y+=2;
   });
   const pageCount=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN B043 \u00B7 Seite ${i}/${pageCount}`,margin,295);}
+  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN B048 \u00B7 Seite ${i}/${pageCount}`,margin,295);}
   doc.save('planbazn-gruppen-objekte.pdf');
 }
 
