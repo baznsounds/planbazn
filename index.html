@@ -294,15 +294,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
     </div>
     <div id="sidebar">
       <div id="sidebar-tabs" style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;">
-        <button id="tab-groups" class="sidebar-tab active" onclick="switchSidebarTab('groups')">Gruppen</button>
+        <button id="tab-groups" class="sidebar-tab active" onclick="switchSidebarTab('groups')">Ebenen</button>
         <button id="tab-dmx" class="sidebar-tab" onclick="switchSidebarTab('dmx')">&#x1F4A1; DMX</button>
       </div>
       <!-- GROUPS TAB -->
       <div id="sidebar-panel-groups">
         <div id="sidebar-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px 4px;">
-          <button class="btn" onclick="openGroupModal()" style="font-size:10px;padding:3px 8px;">+ Gruppe</button>
+          <button class="btn" onclick="openGroupModal()" style="font-size:10px;padding:3px 8px;">+ Ebene</button>
         </div>
-        <div id="empty-state">Noch keine Gruppen.<br>Erst kalibrieren, dann<br>eine Gruppe anlegen.</div>
+        <div id="empty-state">Noch keine Ebenen.<br>Erst kalibrieren, dann<br>eine Ebene anlegen.</div>
         <div id="group-list"></div>
       </div>
       <!-- DMX TAB -->
@@ -316,7 +316,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       <div id="statusbar">
         <span class="s-dot" id="cal-dot" style="background:var(--muted)"></span>
         <span id="cal-status">Nicht kalibriert</span>
-        <span style="margin-left:8px;opacity:.4;font-size:9px;">B051</span>
+        <span style="margin-left:8px;opacity:.4;font-size:9px;">B058</span>
         <span id="autosave-status" style="margin-left:auto;opacity:0;transition:opacity .5s;font-size:9px;color:var(--accent)"></span>
       </div>
     </div>
@@ -331,6 +331,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
   <div id="ctx-edit" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;">Bearbeiten</div>
   <div id="ctx-copy" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;">Duplizieren</div>
   <div id="ctx-stamp" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;">Raster-Duplikat…</div>
+  <div id="ctx-link" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;">Gruppieren</div>
+  <div id="ctx-unlink" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;display:none;">Gruppierung aufheben</div>
   <div id="ctx-del" style="padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;color:var(--accent3);">Loeschen</div>
 </div>
 
@@ -361,8 +363,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
 <!-- GROUP CREATE/EDIT -->
 <div class="modal-bg hidden" id="group-modal">
   <div class="modal">
-    <h3 id="gm-title">Neue Gruppe</h3>
-    <div><label>Name</label><input type="text" id="gm-name" placeholder="Gruppenname…"></div>
+    <h3 id="gm-title">Neue Ebene</h3>
+    <div><label>Name</label><input type="text" id="gm-name" placeholder="Ebenenname…"></div>
     <div><label>Farbe</label><div class="color-picker" id="gm-colors"></div></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeGroupModal()">Abbrechen</button>
@@ -471,7 +473,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);display:f
       </div>
       <div class="print-option" data-val="list" onclick="selectPrint(this)">
         <span class="print-icon">📋</span>
-        <div><div class="print-label">Gruppen &amp; Objekte</div><div class="print-sub">Alle Objekte als A4-PDF</div></div>
+        <div><div class="print-label">Ebenen &amp; Objekte</div><div class="print-sub">Alle Objekte als A4-PDF</div></div>
       </div>
     </div>
     <div class="modal-actions">
@@ -584,6 +586,59 @@ const SYMBOL_LIBRARY = [
     }
   },
 
+  // ══════════ BÜHNE ══════════
+  {
+    id:'podest-1x05', name:'Podest 1×0.5', cat:'buehne',
+    w:1.0, h:0.5, scalable:true, showLabel:false,
+    draw:(c,pw,ph)=>`<rect x="0" y="0" width="${pw}" height="${ph}" fill="${c}18" stroke="${c}" stroke-width="2"/>`
+  },
+  {
+    id:'podest-1x1', name:'Podest 1×1', cat:'buehne',
+    w:1.0, h:1.0, scalable:true, showLabel:false,
+    draw:(c,pw,ph)=>`<rect x="0" y="0" width="${pw}" height="${ph}" fill="${c}18" stroke="${c}" stroke-width="2"/>`
+  },
+  {
+    id:'podest-2x05', name:'Podest 2×0.5', cat:'buehne',
+    w:2.0, h:0.5, scalable:true, showLabel:false,
+    draw:(c,pw,ph)=>`<rect x="0" y="0" width="${pw}" height="${ph}" fill="${c}18" stroke="${c}" stroke-width="2"/>`
+  },
+  {
+    id:'podest-2x1', name:'Podest 2×1', cat:'buehne',
+    w:2.0, h:1.0, scalable:true, showLabel:false,
+    draw:(c,pw,ph)=>`<rect x="0" y="0" width="${pw}" height="${ph}" fill="${c}18" stroke="${c}" stroke-width="2"/>`
+  },
+  {
+    id:'buehne-dynamisch', name:'Bühne', cat:'buehne',
+    w:4.0, h:3.0, scalable:true, showLabel:true, _dynamic:true,
+    draw:(c,pw,ph)=>{
+      // Default 4x3m: 2m cols, 1m rows
+      const lines=[];
+      const px1m=pw/4;
+      for(let m=2;m<4;m+=2){const x=(m*px1m).toFixed(1);lines.push(`<line x1="${x}" y1="0" x2="${x}" y2="${ph}" stroke="${c}" stroke-width="1" opacity="0.6"/>`);}
+      const px1mH=ph/3;
+      for(let m=1;m<3;m++){const y=(m*px1mH).toFixed(1);lines.push(`<line x1="0" y1="${y}" x2="${pw}" y2="${y}" stroke="${c}" stroke-width="1" opacity="0.6"/>`);}
+      return `<rect x="0" y="0" width="${pw}" height="${ph}" fill="${c}18" stroke="${c}" stroke-width="2"/>${lines.join('')}`;
+    }
+  },
+  {
+    id:'trailerbuehne', name:'Trailerbühne 8×6m', cat:'buehne',
+    w:8.0, h:6.0, scalable:false, showLabel:true,
+    draw:(c,pw,ph)=>{
+      // Deichsel links, Bühne rechts
+      // Total width = pw (Bühne) + dLen (Deichsel)
+      // We draw in a (pw+dLen) wide space:
+      // Deichsel from x=0 to x=dLen, Bühne from x=dLen to x=dLen+pw
+      const dLen=pw*(2/8);
+      const spread=ph*0.2;
+      const cy=ph/2;
+      const r=Math.max(3,pw*0.012);
+      return `<rect x="${dLen}" y="0" width="${pw}" height="${ph}" fill="${c}18" stroke="${c}" stroke-width="2"/>
+        <line x1="${dLen}" y1="${cy-spread}" x2="${r}" y2="${cy}" stroke="${c}" stroke-width="1.5"/>
+        <line x1="${dLen}" y1="${cy+spread}" x2="${r}" y2="${cy}" stroke="${c}" stroke-width="1.5"/>
+        <circle cx="${r}" cy="${cy}" r="${r}" fill="${c}"/>`;
+    }
+  },
+
   // ══════════ MULTIMEDIA ══════════
   {
     // 1×1m Quadrat, mittig 0.29×0.29 Quadrat, direkt darunter 1.7m Balken
@@ -630,6 +685,14 @@ const SYMBOL_LIBRARY = [
       `;
     }
   },
+  {
+    id:'box-corner', name:'Box Corner', cat:'rigging',
+    w:0.29, h:0.29, scalable:true, showLabel:false,
+    draw:(c,pw,ph)=>`
+      <rect x="0" y="0" width="${pw}" height="${ph}" rx="0" fill="${c}18" stroke="${c}" stroke-width="2"/>
+    `
+  },
+
   // ======== LICHT ========
   {
     id:'mh-spot', name:'MH Spot', cat:'licht',
@@ -711,6 +774,7 @@ const LIB_CATS = {
   rigging:    {label:'Rigging',    icon:'🏗', collapsed:false},
   licht:      {label:'Licht',      icon:'💡', collapsed:false},
   moebel:     {label:'Möbel', icon:'🪑', collapsed:false},
+  buehne:     {label:'Bühne',     icon:'🎭', collapsed:false},
   multimedia: {label:'Multimedia', icon:'📺', collapsed:false},
 };
 </script>
@@ -825,7 +889,11 @@ function renderLibrary(){
       card.className='lib-item';
       card.title=`${sym.name} (${sym.w}x${sym.h}m)`;
       card.draggable=true;
-      const previewW=38,previewH=38;
+      const maxPrev=38;
+      const aspect=sym.w/sym.h;
+      let previewW=maxPrev,previewH=maxPrev;
+      if(aspect>1){previewH=Math.round(maxPrev/aspect);}
+      else if(aspect<1){previewW=Math.round(maxPrev*aspect);}
       const previewColor=sym.forcedColor||'#47c8ff';
       const svgNS='http://www.w3.org/2000/svg';
       const svgEl=document.createElementNS(svgNS,'svg');
@@ -849,7 +917,7 @@ function renderLibrary(){
         card.style.cursor='pointer';
         card.addEventListener('click',()=>{
           if(!calibrated){alert('Bitte zuerst kalibrieren.');return;}
-          if(!activeGroupId){alert('Bitte zuerst eine Gruppe auswählen.');return;}
+          if(!activeGroupId){alert('Bitte zuerst eine Ebene auswählen.');return;}
           setMode(sym.drawTool);
         });
       } else {
@@ -927,8 +995,12 @@ wrap.addEventListener('drop',e=>{
 });
 
 function dropSymbol(sym,pos){
+  if(sym.id==='buehne-dynamisch'){
+    const grp=groups.find(g=>g.id===activeGroupId);if(!grp)return;
+    openBuehneModal(sym,pos,grp);return;
+  }
   if(!calibrated){alert('Bitte zuerst kalibrieren.');return;}
-  if(!activeGroupId){alert('Bitte zuerst eine Gruppe auswählen.');return;}
+  if(!activeGroupId){alert('Bitte zuerst eine Ebene auswählen.');return;}
   if(!pxPerUnit){return;}
   const pw=sym.w*pxPerUnit;
   const ph=sym.h*pxPerUnit;
@@ -1270,7 +1342,7 @@ wrap.addEventListener('mousemove',e=>{
     } else {
       // Single item drag — delta-basiert für alle Typen
       if(!dragging._lastPos){dragging._lastPos={x:pos.x,y:pos.y};}
-      const dx=pos.x-dragging._lastPos.x,dy=pos.y-dragging._lastPos.y;
+      let dx=pos.x-dragging._lastPos.x,dy=pos.y-dragging._lastPos.y;
       dragging._lastPos={x:pos.x,y:pos.y};
       if(item.type==='symbol'){
         item.x+=dx;item.y+=dy;
@@ -1420,7 +1492,11 @@ wrap.addEventListener('mousedown',e=>{
         if(isShift){
           selectSymbol(hit.item.id,true);
         } else {
-          if(!selectedIds.has(hit.item.id))selectSymbol(hit.item.id,false);
+          if(!selectedIds.has(hit.item.id)){
+            selectSymbol(hit.item.id,false);
+            // Auto-select all linked items
+            if(hit.item.linkedGroupId)selectLinkedItems(hit.item);
+          }
         }
       }
       // Verschieben nur im Select-Modus
@@ -1473,7 +1549,13 @@ wrap.addEventListener('mouseup',e=>{
 });
 
 wrap.addEventListener('mouseenter',()=>{if(pdfCanvas.width)cursorDot.style.display='block';});
-wrap.addEventListener('mouseleave',()=>{cursorDot.style.display='none';if(dragging){dragging=null;didDrag=false;updateCursor();}});
+wrap.addEventListener('mouseleave',()=>{
+  cursorDot.style.display='none';
+  if(dragging){dragging=null;didDrag=false;updateCursor();}
+  // Stop panning when leaving canvas
+  if(panning){panning=false;panStart=null;updateCursor();}
+  
+});
 
 wrap.addEventListener('click',e=>{
   if(!pdfCanvas.width||spaceDown||panning)return;
@@ -1495,7 +1577,7 @@ wrap.addEventListener('click',e=>{
     return;
   }
 
-  if(!activeGroupId){alert('Bitte zuerst eine Gruppe auswählen oder anlegen.');return;}
+  if(!activeGroupId){alert('Bitte zuerst eine Ebene auswählen oder anlegen.');return;}
 
   if(mode==='measure'){
     if(!drawing){drawing=true;startPt=p;}
@@ -1649,7 +1731,14 @@ function confirmStamp(){
 }
 
 function itemBoundingBox(item){
-  if(item.type==='symbol')return{x:item.x,y:item.y,w:item.pw,h:item.ph};
+  if(item.type==='symbol'){
+    // Trailerbühne: include deichsel in bounding box (extends left by 2/8 of width)
+    if(item.symId==='trailerbuehne'){
+      const dLen=item.pw*(2/8);
+      return{x:item.x,y:item.y,w:item.pw+dLen,h:item.ph};
+    }
+    return{x:item.x,y:item.y,w:item.pw,h:item.ph};
+  }
   if(item.type==='text')return{x:item.pos.x,y:item.pos.y,w:60,h:20};
   if(item.pts){const xs=item.pts.map(p=>p.x),ys=item.pts.map(p=>p.y);const x=Math.min(...xs),y=Math.min(...ys);return{x,y,w:Math.max(...xs)-x||20,h:Math.max(...ys)-y||20};}
   if(item.p1){const x=Math.min(item.p1.x,item.p2.x),y=Math.min(item.p1.y,item.p2.y);return{x,y,w:Math.abs(item.p2.x-item.p1.x)||20,h:Math.abs(item.p2.y-item.p1.y)||20};}
@@ -1660,7 +1749,7 @@ function itemBoundingBox(item){
 document.getElementById('ctx-edit').onclick=(e)=>{
   e.stopPropagation();
   if(!ctxTargetItem)return;
-  if(ctxTargetGrp&&ctxTargetGrp.locked){hideCtxMenu();alert('Gruppe ist gesperrt.');return;}
+  if(ctxTargetGrp&&ctxTargetGrp.locked){hideCtxMenu();alert('Ebene ist gesperrt.');return;}
   const item=ctxTargetItem;hideCtxMenu();
   if(item.type==='text')openTextEditModal(item);
   else openSymEditModal(item);
@@ -1668,7 +1757,7 @@ document.getElementById('ctx-edit').onclick=(e)=>{
 document.getElementById('ctx-copy').onclick=(e)=>{
   e.stopPropagation();
   if(!ctxTargetItem||!ctxTargetGrp)return;
-  if(ctxTargetGrp.locked){hideCtxMenu();alert('Gruppe ist gesperrt.');return;}
+  if(ctxTargetGrp.locked){hideCtxMenu();alert('Ebene ist gesperrt.');return;}
   // Store before hideCtxMenu clears them
   const gid=ctxTargetGrp.id,iid=ctxTargetItem.id;
   const isMulti=selectedIds.size>1&&selectedIds.has(iid);
@@ -1679,6 +1768,15 @@ document.getElementById('ctx-copy').onclick=(e)=>{
   const copy=copyItem(gid,iid);
   if(copy){selectedIds.add(copy.id);redrawItemById(copy.id);}
   renderSidebar();
+};
+document.getElementById('ctx-link').onclick=(e)=>{
+  e.stopPropagation();hideCtxMenu();
+  if(selectedIds.size>=2)linkSelected();
+  else alert('Bitte mindestens 2 Objekte auswählen.');
+};
+document.getElementById('ctx-unlink').onclick=(e)=>{
+  e.stopPropagation();hideCtxMenu();
+  unlinkSelected();
 };
 document.getElementById('ctx-del').onclick=(e)=>{
   e.stopPropagation();
@@ -1698,7 +1796,13 @@ wrap.addEventListener('contextmenu',e=>{
   const pos=canvasPos(e);
   const hits=[];
   for(const grp of groups){if(grp.locked)continue;for(const item of [...grp.items].reverse()){if(isOverItem(pos.x,pos.y,item))hits.push({item,grp});}}
-  if(hits.length)showCtxMenu(e.clientX,e.clientY,hits);
+  if(hits.length){
+    // Show/hide link vs unlink
+    const anyLinked=[...selectedIds].some(id=>groups.some(g=>g.items.find(i=>i.id===id&&i.linkedGroupId)));
+    document.getElementById('ctx-link').style.display=anyLinked?'none':'block';
+    document.getElementById('ctx-unlink').style.display=anyLinked?'block':'none';
+    showCtxMenu(e.clientX,e.clientY,hits);
+  }
 });
 
 // ══════════════════════════════════════════
@@ -1860,6 +1964,12 @@ function confirmSymEdit(){
     item.label=document.getElementById('sem-label').value.trim()||item.label;
   }
   item.showLabel = document.getElementById('sem-show-label').checked;
+  // If Bühne dynamisch: update label and draw fn when scaled
+  if(item.symId==='buehne-dynamisch'&&item.scalable&&item._buehneW){
+    item._buehneW=item.realW;item._buehneH=item.realH;
+    item._drawFn=buildBuehneDraw(item.realW,item.realH);
+    item.label='Bühne '+item.realW+'×'+item.realH+' m';
+  }
   // Save DMX fields if light symbol
   if(LIGHT_SYMS.includes(item.symId)){
     const dmxName=document.getElementById('sem-dmx-name').value.trim();
@@ -1960,7 +2070,7 @@ function openGroupModal(editGid=null){
   if(!calibrated){alert('Bitte zuerst kalibrieren.');return;}
   editingGroupId=editGid;
   const grp=editGid?groups.find(g=>g.id===editGid):null;
-  document.getElementById('gm-title').textContent=grp?'Gruppe bearbeiten':'Neue Gruppe';
+  document.getElementById('gm-title').textContent=grp?'Ebene bearbeiten':'Neue Ebene';
   document.getElementById('gm-confirm').textContent=grp?'Speichern':'Anlegen';
   document.getElementById('gm-name').value=grp?grp.name:'';
   gmColor=grp?grp.color:COLORS[groups.length%COLORS.length]; // COLORS[0]='#222222' = schwarz
@@ -1974,12 +2084,12 @@ function renderSwatches(){
   COLORS.forEach(c=>{const s=document.createElement('div');s.className='cswatch'+(c===gmColor?' sel':'');s.style.background=c;s.onclick=()=>{gmColor=c;renderSwatches();};el.appendChild(s);});
 }
 function confirmGroup(){
-  const name=document.getElementById('gm-name').value.trim()||'Gruppe '+(groups.length+1);
+  const name=document.getElementById('gm-name').value.trim()||'Ebene '+(groups.length+1);
   if(editingGroupId){
     const grp=groups.find(g=>g.id===editingGroupId);
     if(grp){grp.name=name;grp.color=gmColor;redrawGroupItems(grp);}
   } else {
-    const grp={id:++idCounter,name,color:gmColor,visible:true,collapsed:false,items:[]};
+    const grp={id:++idCounter,name,color:gmColor,visible:true,collapsed:false,locked:false,hideLabels:false,items:[]};
     groups.push(grp);activeGroupId=grp.id;
   }
   closeGroupModal();renderSidebar();
@@ -2009,7 +2119,7 @@ function toggleCollapse(gid){const grp=groups.find(g=>g.id===gid);if(!grp)return
 function selectGroup(gid){activeGroupId=gid;renderSidebar();}
 function deleteItem(gid,iid){
   const grp=groups.find(g=>g.id===gid);if(!grp)return;
-  if(grp.locked){alert('Gruppe ist gesperrt.');return;}
+  if(grp.locked){alert('Ebene ist gesperrt.');return;}
   pushUndo();
   grp.items=grp.items.filter(i=>i.id!==iid);
   const el=document.getElementById('item-'+iid);if(el)el.remove();
@@ -2041,7 +2151,7 @@ function copyItemsSelected(){
 }
 function copyItem(gid,iid){
   const grp=groups.find(g=>g.id===gid);if(!grp)return null;
-  if(grp.locked){alert('Gruppe ist gesperrt.');return null;}
+  if(grp.locked){alert('Ebene ist gesperrt.');return null;}
   pushUndo();
   const orig=grp.items.find(i=>i.id===iid);if(!orig)return null;
   const copy=JSON.parse(JSON.stringify(orig));
@@ -2312,6 +2422,123 @@ function svgLabel(g,x,y,text,bg,fontSize=11){
 }
 function tempLine(x1,y1,x2,y2,color){const g=mkG('');svgLine(g,x1,y1,x2,y2,color,1.5,[6,3]);svg.appendChild(g);return g;}
 function fmtVal(v,u){if(v>=1000)return(v/1000).toFixed(2)+' k'+u;if(v<0.01)return(v*1000).toFixed(1)+' m'+u;return v.toFixed(2)+' '+u;}
+
+// ══════════════════════════════════════════
+// OBJECT GROUPING (linkedGroupId)
+// ══════════════════════════════════════════
+let _nextLinkId=1;
+
+function linkSelected(){
+  if(selectedIds.size<2)return;
+  const linkId='lnk'+(++_nextLinkId);
+  selectedIds.forEach(id=>{
+    for(const grp of groups){
+      const item=grp.items.find(i=>i.id===id);
+      if(item){item.linkedGroupId=linkId;break;}
+    }
+  });
+  renderSidebar();
+}
+
+function unlinkSelected(){
+  selectedIds.forEach(id=>{
+    for(const grp of groups){
+      const item=grp.items.find(i=>i.id===id);
+      if(item){delete item.linkedGroupId;break;}
+    }
+  });
+  renderSidebar();
+}
+
+function selectLinkedItems(item){
+  if(!item.linkedGroupId)return;
+  const linkId=item.linkedGroupId;
+  groups.forEach(grp=>{
+    grp.items.forEach(i=>{
+      if(i.linkedGroupId===linkId&&!selectedIds.has(i.id)){
+        selectedIds.add(i.id);
+        redrawItemById(i.id);
+      }
+    });
+  });
+}
+
+
+// ══════════════════════════════════════════
+// SNAP TO EDGE / CENTER
+// ══════════════════════════════════════════
+
+function getSnapPoints(item){
+  const bb=itemBoundingBox(item);
+  return{
+    x:[bb.x, bb.x+bb.w/2, bb.x+bb.w],
+    y:[bb.y, bb.y+bb.h/2, bb.y+bb.h],
+    cx:bb.x+bb.w/2, cy:bb.y+bb.h/2,
+    l:bb.x, r:bb.x+bb.w, t:bb.y, b:bb.y+bb.h
+  };
+}
+
+function clearSnapLines(){
+  if(_snapLineH){_snapLineH.remove();_snapLineH=null;}
+  if(_snapLineV){_snapLineV.remove();_snapLineV=null;}
+}
+
+function showSnapLine(axis,val){
+  const svgNS='http://www.w3.org/2000/svg';
+  if(axis==='h'){
+    if(_snapLineH)_snapLineH.remove();
+    _snapLineH=document.createElementNS(svgNS,'line');
+    _snapLineH.setAttribute('x1',-9999);_snapLineH.setAttribute('x2',9999);
+    _snapLineH.setAttribute('y1',val);_snapLineH.setAttribute('y2',val);
+    _snapLineH.setAttribute('stroke','#47c8ff');_snapLineH.setAttribute('stroke-width','0.5');
+    _snapLineH.setAttribute('stroke-dasharray','4 3');_snapLineH.setAttribute('opacity','0.8');
+    svg.appendChild(_snapLineH);
+  } else {
+    if(_snapLineV)_snapLineV.remove();
+    _snapLineV=document.createElementNS(svgNS,'line');
+    _snapLineV.setAttribute('y1',-9999);_snapLineV.setAttribute('y2',9999);
+    _snapLineV.setAttribute('x1',val);_snapLineV.setAttribute('x2',val);
+    _snapLineV.setAttribute('stroke','#47c8ff');_snapLineV.setAttribute('stroke-width','0.5');
+    _snapLineV.setAttribute('stroke-dasharray','4 3');_snapLineV.setAttribute('opacity','0.8');
+    svg.appendChild(_snapLineV);
+  }
+}
+
+function applySnapToItem(movingItem,dx,dy){
+  const bb=itemBoundingBox(movingItem);
+  const mL=bb.x+dx, mR=bb.x+bb.w+dx;
+  const mT=bb.y+dy, mB=bb.y+bb.h+dy;
+  let snapDX=null, snapDY=null;
+  const threshold=SNAP_THRESHOLD/viewScale;
+  
+  for(const grp of groups){
+    if(!grp.visible||grp.locked)continue;
+    for(const other of grp.items){
+      if(other.id===movingItem.id||selectedIds.has(other.id))continue;
+      const ob=itemBoundingBox(other);
+      const oL=ob.x, oR=ob.x+ob.w, oT=ob.y, oB=ob.y+ob.h;
+      // Objects must OVERLAP on the perpendicular axis to snap
+      // X-snap: only if objects overlap vertically (Y ranges overlap)
+      const yOverlap=mT<oB&&mB>oT;
+      if(yOverlap){
+        if(Math.abs(mR-oL)<threshold){const d=oL-mR;if(snapDX===null||Math.abs(d)<Math.abs(snapDX)){snapDX=d;showSnapLine('v',oL);}}
+        if(Math.abs(mL-oR)<threshold){const d=oR-mL;if(snapDX===null||Math.abs(d)<Math.abs(snapDX)){snapDX=d;showSnapLine('v',oR);}}
+        if(Math.abs(mL-oL)<threshold){const d=oL-mL;if(snapDX===null||Math.abs(d)<Math.abs(snapDX)){snapDX=d;showSnapLine('v',oL);}}
+        if(Math.abs(mR-oR)<threshold){const d=oR-mR;if(snapDX===null||Math.abs(d)<Math.abs(snapDX)){snapDX=d;showSnapLine('v',oR);}}
+      }
+      // Y-snap: only if objects overlap horizontally (X ranges overlap)
+      const xOverlap=mL<oR&&mR>oL;
+      if(xOverlap){
+        if(Math.abs(mB-oT)<threshold){const d=oT-mB;if(snapDY===null||Math.abs(d)<Math.abs(snapDY)){snapDY=d;showSnapLine('h',oT);}}
+        if(Math.abs(mT-oB)<threshold){const d=oB-mT;if(snapDY===null||Math.abs(d)<Math.abs(snapDY)){snapDY=d;showSnapLine('h',oB);}}
+        if(Math.abs(mT-oT)<threshold){const d=oT-mT;if(snapDY===null||Math.abs(d)<Math.abs(snapDY)){snapDY=d;showSnapLine('h',oT);}}
+        if(Math.abs(mB-oB)<threshold){const d=oB-mB;if(snapDY===null||Math.abs(d)<Math.abs(snapDY)){snapDY=d;showSnapLine('h',oB);}}
+      }
+    }
+  }
+  return{dx:dx+(snapDX||0), dy:dy+(snapDY||0)};
+}
+
 function snapAngle(from,to){
   const dx=to.x-from.x,dy=to.y-from.y,len=Math.hypot(dx,dy);if(len<2)return to;
   const angle=Math.atan2(dy,dx)*180/Math.PI;
@@ -2336,8 +2563,13 @@ function redrawItem(g,item,groupCol,hideLabel=false){
   const color=item.forcedColor||groupCol;
   const symOpacity=item.opacity!=null?item.opacity:0.9;
   if(item.type==='symbol'){
-    const sym=SYMBOL_LIBRARY.find(s=>s.id===item.symId);
+    let sym=SYMBOL_LIBRARY.find(s=>s.id===item.symId);
     if(!sym)return;
+    // Dynamic Bühne: use stored draw function with correct dimensions
+    if(item.symId==='buehne-dynamisch'&&item._buehneW&&item._buehneH){
+      const drawFn=buildBuehneDraw(item._buehneW,item._buehneH);
+      sym={...sym,draw:drawFn};
+    }
     const cx=item.x+item.pw/2,cy=item.y+item.ph/2;
     const rot=item.rot||0;
     // wrapper group with rotation transform
@@ -2358,17 +2590,22 @@ function redrawItem(g,item,groupCol,hideLabel=false){
     // selection handles — für alle selektierten Items
     if(selectedIds.has(item.id)){
       // bounding box corners (axis-aligned)
-      const hw=item.pw/2+6,hh=item.ph/2+6;
-      // dashed selection rect (rotated)
+      // Selection rect: for Trailerbühne include deichsel width
+      const dOff=item.symId==='trailerbuehne'?item.pw*(2/8):0;
+      const totalW=item.pw+dOff;
+      const hw=totalW/2+6,hh=item.ph/2+6;
+      // Center of full object (including deichsel)
+      const selCx=item.x+totalW/2;
+      // dashed selection rect
       const selRect=document.createElementNS('http://www.w3.org/2000/svg','rect');
-      selRect.setAttribute('x',cx-hw);selRect.setAttribute('y',cy-hh);
+      selRect.setAttribute('x',selCx-hw);selRect.setAttribute('y',cy-hh);
       selRect.setAttribute('width',hw*2);selRect.setAttribute('height',hh*2);
       selRect.setAttribute('fill','none');selRect.setAttribute('stroke','#47c8ff');
       selRect.setAttribute('stroke-width',1);selRect.setAttribute('stroke-dasharray','5 3');
-      selRect.setAttribute('transform',`rotate(${rot},${cx},${cy})`);
+      selRect.setAttribute('transform',`rotate(${rot},${selCx},${cy})`);
       g.appendChild(selRect);
-      // rotation handle — circle above top center (rotated position)
-      const rotHx=cx+Math.sin(rot*Math.PI/180)*(-hh-16);
+      // rotation handle
+      const rotHx=selCx+Math.sin(rot*Math.PI/180)*(-hh-16);
       const rotHy=cy-Math.cos(rot*Math.PI/180)*(hh+16);
       const rotH=document.createElementNS('http://www.w3.org/2000/svg','circle');
       rotH.setAttribute('cx',rotHx);rotH.setAttribute('cy',rotHy);rotH.setAttribute('r',6);
@@ -2701,8 +2938,89 @@ function exportDMXPDF(){
     });y+=4;
   });
   const pc=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pc;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text('PLANBAZN B051 — DMX Patch',margin,295);}
+  for(let i=1;i<=pc;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text('PLANBAZN B058 — DMX Patch',margin,295);}
   doc.save('planbazn-dmx-patch.pdf');
+}
+
+
+
+// ══════════════════════════════════════════
+// BÜHNE DYNAMISCH
+// ══════════════════════════════════════════
+let _pendingBuehnePos=null,_pendingBuehneGrp=null;
+
+function openBuehneModal(sym,pos,grp){
+  _pendingBuehnePos=pos;_pendingBuehneGrp=grp;
+  document.getElementById('buehne-modal').classList.remove('hidden');
+  // Update preview info
+  updateBuehneInfo();
+}
+
+function updateBuehneInfo(){
+  const w=parseFloat(document.getElementById('buehne-w').value)||4;
+  const h=parseFloat(document.getElementById('buehne-h').value)||3;
+  // Count tiles
+  const n2x1=Math.floor(w/2)*Math.floor(h/1);
+  const remW=w%(2); const remH=h%(1);
+  const info=w+'×'+h+' m — Raster: 2×1m Podeste';
+  document.getElementById('buehne-preview-info').textContent=info;
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const bw=document.getElementById('buehne-w');
+  const bh=document.getElementById('buehne-h');
+  if(bw)bw.addEventListener('input',updateBuehneInfo);
+  if(bh)bh.addEventListener('input',updateBuehneInfo);
+});
+
+function buildBuehneDraw(wM,hM){
+  return (c,pw,ph)=>{
+    const lines=[];
+    const pxPer1m=pw/wM; // px per meter
+    // Vertical lines every 2m
+    for(let m=2;m<wM;m+=2){
+      const x=(m*pxPer1m).toFixed(1);
+      lines.push('<line x1="'+x+'" y1="0" x2="'+x+'" y2="'+ph+'" stroke="'+c+'" stroke-width="1" opacity="0.6"/>');
+    }
+    // Horizontal lines every 1m
+    const pxPer1mH=ph/hM;
+    for(let m=1;m<hM;m+=1){
+      const y=(m*pxPer1mH).toFixed(1);
+      lines.push('<line x1="0" y1="'+y+'" x2="'+pw+'" y2="'+y+'" stroke="'+c+'" stroke-width="1" opacity="0.6"/>');
+    }
+    return '<rect x="0" y="0" width="'+pw+'" height="'+ph+'" fill="'+c+'18" stroke="'+c+'" stroke-width="2"/>'+lines.join('');
+  };
+}
+
+function confirmBuehne(){
+  document.getElementById('buehne-modal').classList.add('hidden');
+  if(!_pendingBuehnePos||!_pendingBuehneGrp)return;
+  const wM=parseFloat(document.getElementById('buehne-w').value)||4;
+  const hM=parseFloat(document.getElementById('buehne-h').value)||3;
+  // Round to 0.5m
+  const rW=Math.round(wM*2)/2;
+  const rH=Math.round(hM*2)/2;
+  if(!pxPerUnit)return;
+  const pw=rW*pxPerUnit, ph=rH*pxPerUnit;
+  const sym={
+    id:'buehne-dynamisch',name:'Bühne '+rW+'×'+rH+'m',
+    w:rW,h:rH,scalable:true,showLabel:true,
+    draw:buildBuehneDraw(rW,rH)
+  };
+  const grp=_pendingBuehneGrp;
+  const id=++idCounter;
+  const x=_pendingBuehnePos.x-pw/2, y=_pendingBuehnePos.y-ph/2;
+  const item={id,type:'symbol',symId:'buehne-dynamisch',x,y,pw,ph,rot:0,
+    label:'Bühne '+rW+'×'+rH+' m',realW:rW,realH:rH,scalable:true,
+    opacity:0.9,forcedColor:null,_buehneW:rW,_buehneH:rH};
+  // Store draw fn on item for redraw
+  item._drawFn=sym.draw;
+  grp.items.push(item);
+  const g=mkG('item-'+id);
+  redrawItem(g,item,grp.color,!!grp.hideLabels);
+  svg.appendChild(g);
+  renderSidebar();
+  setMode('select');
+  _pendingBuehnePos=null;_pendingBuehneGrp=null;
 }
 
 function renderSidebar(){
@@ -2769,7 +3087,7 @@ function renderSidebar(){
       <button class="g-lock" data-gid="${grp.id}" title="${grp.locked?'Entsperren':'Sperren'}" style="background:none;border:none;cursor:pointer;padding:1px 3px;font-size:11px;color:${grp.locked?'var(--accent3)':'var(--muted)'};">${grp.locked?'🔒':'🔓'}</button>
       <button class="g-lbl" data-gid="${grp.id}" title="${grp.hideLabels?'Labels anzeigen':'Labels ausblenden'}" style="background:none;border:none;cursor:pointer;padding:1px 3px;font-size:11px;color:${grp.hideLabels?'var(--muted)':'var(--accent2)'};">T</button>
       <button class="g-tog${grp.collapsed?'':' open'}" data-gid="${grp.id}">›</button>
-      <button class="g-del" data-gid="${grp.id}" title="Löschen">✕</button>
+<button class="g-del" data-gid="${grp.id}" title="Löschen">✕</button>
     `;
     hdr.addEventListener('dragstart',e=>{
       sidebarDragGid=grp.id;sidebarDragIid=null;sidebarDragSrcGid=null;
@@ -3028,7 +3346,7 @@ function clearAll(){
   document.getElementById('cal-status').textContent='Nicht kalibriert';
   const btn=document.getElementById('cal-btn');btn.textContent='📏 Kalibrieren';btn.classList.remove('waiting');btn.classList.add('a2');
   mode='select';setMode('select');lockTools(true);showCalLock(false);
-  const grp={id:++idCounter,name:'Gruppe 1',color:COLORS[0],visible:true,collapsed:false,items:[]};
+  const grp={id:++idCounter,name:'Ebene 1',color:COLORS[0],visible:true,collapsed:false,locked:false,hideLabels:false,items:[]};
   groups.push(grp);activeGroupId=grp.id;
   renderSidebar();clearAutosave();
 }
@@ -3092,7 +3410,7 @@ function exportListPDF(){
   doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(140,140,140);
   const date=new Date().toLocaleDateString('de-AT');
   let totalItems=0;groups.forEach(g=>totalItems+=g.items.length);
-  doc.text(`Gruppen & Objekte \u00B7 ${date} \u00B7 ${totalItems} Eintr\u00E4ge`,margin,y);y+=10;
+  doc.text(`Ebenen & Objekte \u00B7 ${date} \u00B7 ${totalItems} Eintr\u00E4ge`,margin,y);y+=10;
   doc.setDrawColor(200,200,200);doc.setLineWidth(0.3);doc.line(margin,y,pageW-margin,y);y+=6;
   doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(120,120,120);
   doc.text('#',margin,y);doc.text('Bezeichnung',margin+10,y);doc.text('Typ',margin+contentW-30,y);
@@ -3138,8 +3456,8 @@ function exportListPDF(){
     });y+=2;
   });
   const pageCount=doc.internal.getNumberOfPages();
-  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN B051 \u00B7 Seite ${i}/${pageCount}`,margin,295);}
-  doc.save('planbazn-gruppen-objekte.pdf');
+  for(let i=1;i<=pageCount;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(180,180,180);doc.text(`Erstellt mit PLANBAZN B058 \u00B7 Seite ${i}/${pageCount}`,margin,295);}
+  doc.save('planbazn-ebenen-objekte.pdf');
 }
 
 // ══════════════════════════════════════════
@@ -3239,7 +3557,7 @@ function confirmNewCanvas(){
 restoreAutosave().then(restored=>{
   if(!restored||!groups.length){
     if(!groups.length){
-      const grp={id:++idCounter,name:'Gruppe 1',color:COLORS[0],visible:true,collapsed:false,items:[]};
+      const grp={id:++idCounter,name:'Ebene 1',color:COLORS[0],visible:true,collapsed:false,locked:false,hideLabels:false,items:[]};
       groups.push(grp);activeGroupId=grp.id;
     }
     renderSidebar();
@@ -3281,6 +3599,31 @@ restoreAutosave().then(restored=>{
     <div class="modal-btns">
       <button class="btn" onclick="document.getElementById('stamp-modal').classList.add('hidden')">Abbrechen</button>
       <button class="btn a2" onclick="confirmStamp()">Erstellen</button>
+    </div>
+  </div>
+</div>
+
+<!-- BÜHNE MODAL -->
+<div class="modal-bg hidden" id="buehne-modal">
+  <div class="modal" style="min-width:280px;">
+    <div class="modal-title">🎭 Bühne konfigurieren</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">
+      <div>
+        <label>Breite (m)</label>
+        <input type="number" id="buehne-w" value="4" min="0.5" max="50" step="0.5"
+          style="width:100%;background:var(--panel);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:4px 6px;">
+      </div>
+      <div>
+        <label>Tiefe (m)</label>
+        <input type="number" id="buehne-h" value="3" min="0.5" max="50" step="0.5"
+          style="width:100%;background:var(--panel);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:4px 6px;">
+      </div>
+    </div>
+    <div id="buehne-preview-info" style="margin-top:8px;font-size:10px;color:var(--muted);font-family:var(--font-mono);"></div>
+    <div style="color:var(--muted);font-size:10px;margin-top:4px;">Schritte: 0.5m</div>
+    <div class="modal-btns">
+      <button class="btn" onclick="document.getElementById('buehne-modal').classList.add('hidden');">Abbrechen</button>
+      <button class="btn a2" onclick="confirmBuehne()">Einfügen</button>
     </div>
   </div>
 </div>
